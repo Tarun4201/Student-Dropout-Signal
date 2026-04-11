@@ -39,6 +39,7 @@ from sklearn.metrics import (
 )
 from sklearn.calibration import CalibratedClassifierCV, calibration_curve
 from xgboost import XGBClassifier
+from mlflow.models import infer_signature
 
 print("✅ All imports successful")
 
@@ -141,7 +142,8 @@ with mlflow.start_run(run_name="logistic_regression_baseline") as lr_run:
     fig.tight_layout(); fig.savefig("/tmp/lr_confusion_matrix.png", dpi=150)
     mlflow.log_artifact("/tmp/lr_confusion_matrix.png"); plt.close()
     
-    mlflow.sklearn.log_model(lr_model, "model")
+    lr_signature = infer_signature(X_train, lr_model.predict(X_train))
+    mlflow.sklearn.log_model(lr_model, "model", signature=lr_signature, input_example=X_train[:5])
     lr_run_id = lr_run.info.run_id
     
     print("✅ Logistic Regression logged")
@@ -188,8 +190,9 @@ with mlflow.start_run(run_name="xgboost_classifier") as xgb_run:
     importance_df.to_csv("/tmp/feature_importance.csv", index=False)
     mlflow.log_artifact("/tmp/feature_importance.csv")
     
-    mlflow.sklearn.log_model(xgb_model, "raw_xgb_model")
-    mlflow.sklearn.log_model(xgb_model, "model")
+    xgb_signature = infer_signature(X_train, xgb_model.predict(X_train))
+    mlflow.sklearn.log_model(xgb_model, "raw_xgb_model", signature=xgb_signature, input_example=X_train[:5])
+    mlflow.sklearn.log_model(xgb_model, "model", signature=xgb_signature, input_example=X_train[:5])
     
     xgb_run_id = xgb_run.info.run_id
     print("✅ XGBoost logged")
@@ -255,7 +258,8 @@ with mlflow.start_run(run_id=xgb_run_id):
     mlflow.log_artifact("/tmp/reliability_diagram.png")
     mlflow.log_params({"calibration_method": "platt_scaling", "calibration_val_size": X_val.shape[0]})
     for m, v in cal_metrics.items(): mlflow.log_metric(f"calibrated_{m}", v)
-    mlflow.sklearn.log_model(calibrated_model, "calibrated_model")
+    calibrated_signature = infer_signature(X_val, calibrated_model.predict(X_val))
+    mlflow.sklearn.log_model(calibrated_model, "calibrated_model", signature=calibrated_signature, input_example=X_val[:5])
 print("✅ Calibration logged to MLflow")
 
 # COMMAND ----------
@@ -275,9 +279,9 @@ client.set_registered_model_tag(MODEL_NAME, "dataset", "uci_dropout")
 client.set_registered_model_tag(MODEL_NAME, "version", "2.0")
 client.set_registered_model_tag(MODEL_NAME, "fairness_audited", "pending")
 client.set_registered_model_tag(MODEL_NAME, "calibrated", "true")
-client.transition_model_version_stage(name=MODEL_NAME, version=registered_model.version, stage="Production")
+client.set_registered_model_alias(MODEL_NAME, "production", registered_model.version)
 
-print(f"✅ Model registered: {MODEL_NAME} v{registered_model.version} → Production")
+print(f"✅ Model registered: {MODEL_NAME} v{registered_model.version} → production alias")
 
 # COMMAND ----------
 
