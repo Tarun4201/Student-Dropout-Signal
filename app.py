@@ -26,89 +26,112 @@ CSV_PATH = os.path.join(os.path.dirname(__file__),
 
 
 def load_and_process_data():
-    """Load CSV and compute all engineered features from the PRD."""
-    df = pd.read_csv(CSV_PATH)
+    """Load from Live Databricks, with CSV fallback for Hackathon safety."""
+    
+    # 1. Attempt Live Databricks Connection
+    try:
+        from dotenv import load_dotenv
+        import databricks.sql
+        load_dotenv()
+        
+        token = os.getenv("DATABRICKS_TOKEN")
+        if not token or token.startswith('dapi...'):
+            print("[WARN] No valid DATABRICKS_TOKEN provided in .env. Falling back to local offline CSV mode.")
+            raise ValueError("No valid token")
 
-    # --- Data cleaning ---
-    # Some rows have shifted columns (e.g. 'Dropout' in numeric columns).
-    # Drop rows where the 'target' column is NaN (indicates a shift).
-    df = df.dropna(subset=['target']).copy()
+        print("🚀 Connecting to Live Databricks SQL Warehouse...")
+        conn = databricks.sql.connect(
+            server_hostname=os.getenv("DATABRICKS_SERVER_HOSTNAME"),
+            http_path=os.getenv("DATABRICKS_HTTP_PATH"),
+            access_token=token
+        )
+        
+        print("📥 Querying Silver layer...")
+        df = pd.read_sql("SELECT * FROM silver.uci_dropout_clean", conn)
+        
+        print("📥 Querying Gold layer...")
+        try:
+            gold = pd.read_sql("SELECT * FROM gold.at_risk_students", conn)
+        except Exception as e:
+            print(f"[WARN] Could not find gold table: {e}")
+            gold = pd.DataFrame()
+            
+        conn.close()
+        
+        # The API endpoints expect specific column mappings:
+        df['dropout_label'] = (df['target'] == 'Dropout').astype(int)
+        df['gender_label'] = df['gender'].map({0: 'Female', 1: 'Male'})
+        
+        # Merge gold risk predictions where they exist
+        if not gold.empty:
+            gold_sub = gold[['student_id', 'risk_score', 'intervention_tier', 'reason_text', 
+                             'shap_factor_1', 'shap_value_1', 'shap_factor_2', 'shap_value_2', 'shap_factor_3', 'shap_value_3']]
+            df = df.merge(gold_sub, on='student_id', how='left')
+            
+            # Fill NaNs for graduates / low-risk
+            df['risk_score'] = df['risk_score'].fillna(0.15)
+            df['intervention_tier'] = df['intervention_tier'].fillna('low')
+            df['reason_text'] = df['reason_text'].fillna('Low risk of attrition. No intervention required.')
+            df['dropout_predicted'] = (df['intervention_tier'].isin(['high', 'medium'])).astype(int)
+            for i in [1, 2, 3]:
+                df[f'shap_factor_{i}'] = df[f'shap_factor_{i}'].fillna('grade_delta')
+                df[f'shap_value_{i}'] = df[f'shap_value_{i}'].fillna(0.0)
+        else:
+            df['risk_score'] = _simulate_risk_scores(df)
+            df['dropout_predicted'] = (df['risk_score'] >= 0.40).astype(int)
+            df['intervention_tier'] = df['risk_score'].apply(_assign_tier)
+            df = _simulate_shap_factors(df)
+            df['reason_text'] = df.apply(_build_reason_text, axis=1)
 
-    # Coerce all expected-numeric columns to numeric, replacing errors with NaN
-    numeric_cols = [c for c in df.columns if c != 'target']
-    for col in numeric_cols:
-        df[col] = pd.to_numeric(df[col], errors='coerce')
+        # Intersection groups
+        df['socioeconomic_group'] = df['financial_stress_index'].apply(
+            lambda x: 'high_stress' if x >= 3 else 'low_stress')
+        df['intersection'] = df['gender_label'].str.lower() + '_' + df['socioeconomic_group']
 
-    # Fill remaining NaN values with column median
-    for col in numeric_cols:
-        if df[col].isna().any():
-            df[col] = df[col].fillna(df[col].median())
+        print("✅ Live Databricks Hook Successful! Loaded {} rows.".format(len(df)))
+        return df
 
-    df = df.reset_index(drop=True)
-
-    # Assign student IDs (row index)
-    df.insert(0, 'student_id', range(1, len(df) + 1))
-
-    # Binary target encoding
-    df['dropout_label'] = (df['target'] == 'Dropout').astype(int)
-
-    # --- Engineered features ---
-    # 1. grade_delta
-    df['grade_delta'] = (df['curricular_units_2nd_sem_grade']
-                         - df['curricular_units_1st_sem_grade'])
-
-    # 2. absenteeism_trend
-    enr1 = df['curricular_units_1st_sem_enrolled']
-    app1 = df['curricular_units_1st_sem_approved']
-    enr2 = df['curricular_units_2nd_sem_enrolled']
-    app2 = df['curricular_units_2nd_sem_approved']
-    df['absenteeism_trend'] = ((enr1 - app1 + enr2 - app2)
-                               / (enr1 + enr2 + 1))
-
-    # 3. financial_stress_index (range 0-5)
-    df['financial_stress_index'] = (
-        df['debtor'] * 2
-        + (1 - df['tuition_fees_up_to_date']) * 2
-        + (1 - df['scholarship_holder'])
-    )
-
-    # 4. engagement_score
-    df['engagement_score'] = (
-        (app1 / (enr1 + 1))
-        + (app2 / (enr2 + 1))
-        + (df['curricular_units_1st_sem_evaluations']
-           + df['curricular_units_2nd_sem_evaluations']) / 20
-    )
-
-    # --- Simulated risk scores (deterministic, based on features) ---
-    # Since ML notebooks are WIP, generate realistic risk scores using
-    # a logistic combination of engineered features + noise seeded by student_id
-    df['risk_score'] = _simulate_risk_scores(df)
-    df['dropout_predicted'] = (df['risk_score'] >= 0.40).astype(int)
-
-    # Intervention tier
-    df['intervention_tier'] = df['risk_score'].apply(_assign_tier)
-
-    # Socioeconomic group
-    df['socioeconomic_group'] = df['financial_stress_index'].apply(
-        lambda x: 'high_stress' if x >= 3 else 'low_stress')
-
-    # Gender label
-    df['gender_label'] = df['gender'].map({0: 'Female', 1: 'Male'})
-
-    # Intersection group
-    df['intersection'] = (
-        df['gender'].map({0: 'female', 1: 'male'})
-        + '_' + df['socioeconomic_group']
-    )
-
-    # --- SHAP-like top-3 factors (simulated from feature contributions) ---
-    df = _simulate_shap_factors(df)
-
-    # --- reason_text ---
-    df['reason_text'] = df.apply(_build_reason_text, axis=1)
-
-    return df
+    except Exception as e:
+        if "No valid token" not in str(e):
+             print(f"\n[ERROR] Databricks connection failed: {str(e)}")
+        print("\n[INFO] 🚨 FALLING BACK TO OFFLINE CSV MODE 🚨\n")
+        
+        # --- ORIGINAL CSV LOAD LOGIC ---
+        df = pd.read_csv(CSV_PATH)
+        df = df.dropna(subset=['target']).copy()
+        
+        numeric_cols = [c for c in df.columns if c != 'target']
+        for col in numeric_cols:
+            df[col] = pd.to_numeric(df[col], errors='coerce')
+        for col in numeric_cols:
+            if df[col].isna().any():
+                df[col] = df[col].fillna(df[col].median())
+                
+        df = df.reset_index(drop=True)
+        df.insert(0, 'student_id', range(1, len(df) + 1))
+        df['dropout_label'] = (df['target'] == 'Dropout').astype(int)
+        
+        df['grade_delta'] = df['curricular_units_2nd_sem_grade'] - df['curricular_units_1st_sem_grade']
+        enr1 = df['curricular_units_1st_sem_enrolled']
+        app1 = df['curricular_units_1st_sem_approved']
+        enr2 = df['curricular_units_2nd_sem_enrolled']
+        app2 = df['curricular_units_2nd_sem_approved']
+        df['absenteeism_trend'] = ((enr1 - app1 + enr2 - app2) / (enr1 + enr2 + 1))
+        
+        df['financial_stress_index'] = df['debtor'] * 2 + (1 - df['tuition_fees_up_to_date']) * 2 + (1 - df['scholarship_holder'])
+        df['engagement_score'] = (app1 / (enr1 + 1)) + (app2 / (enr2 + 1)) + (df['curricular_units_1st_sem_evaluations'] + df['curricular_units_2nd_sem_evaluations']) / 20
+        
+        df['risk_score'] = _simulate_risk_scores(df)
+        df['dropout_predicted'] = (df['risk_score'] >= 0.40).astype(int)
+        df['intervention_tier'] = df['risk_score'].apply(_assign_tier)
+        
+        df['socioeconomic_group'] = df['financial_stress_index'].apply(lambda x: 'high_stress' if x >= 3 else 'low_stress')
+        df['gender_label'] = df['gender'].map({0: 'Female', 1: 'Male'})
+        df['intersection'] = df['gender'].map({0: 'female', 1: 'male'}) + '_' + df['socioeconomic_group']
+        
+        df = _simulate_shap_factors(df)
+        df['reason_text'] = df.apply(_build_reason_text, axis=1)
+        return df
 
 
 def _simulate_risk_scores(df):
