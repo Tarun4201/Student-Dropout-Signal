@@ -99,6 +99,8 @@ def load_and_process_data():
         df['intersection'] = df['gender_label'].str.lower() + '_' + df['socioeconomic_group']
 
         print("✅ Live Databricks Hook Successful! Loaded {} rows.".format(len(df)))
+        return df
+
 
     except Exception as e:
         if "No valid token" not in str(e):
@@ -119,40 +121,92 @@ def load_and_process_data():
         df = df.reset_index(drop=True)
         df.insert(0, 'student_id', range(1, len(df) + 1))
         df['dropout_label'] = (df['target'] == 'Dropout').astype(int)
-
-    # --- Engineered features (Required by Frontend and Phase 2) ---
-    if 'grade_delta' not in df.columns:
-        df['grade_delta'] = df['curricular_units_2nd_sem_grade'] - df['curricular_units_1st_sem_grade']
         
+        df['grade_delta'] = df['curricular_units_2nd_sem_grade'] - df['curricular_units_1st_sem_grade']
+        enr1 = df['curricular_units_1st_sem_enrolled']
+        app1 = df['curricular_units_1st_sem_approved']
+        enr2 = df['curricular_units_2nd_sem_enrolled']
+        app2 = df['curricular_units_2nd_sem_approved']
+        df['absenteeism_trend'] = ((enr1 - app1 + enr2 - app2) / (enr1 + enr2 + 1))
+        
+        df['financial_stress_index'] = df['debtor'] * 2 + (1 - df['tuition_fees_up_to_date']) * 2 + (1 - df['scholarship_holder'])
+        df['engagement_score'] = (app1 / (enr1 + 1)) + (app2 / (enr2 + 1)) + (df['curricular_units_1st_sem_evaluations'] + df['curricular_units_2nd_sem_evaluations']) / 20
+        
+        df['risk_score'] = _simulate_risk_scores(df)
+        df['dropout_predicted'] = (df['risk_score'] >= 0.40).astype(int)
+        df['intervention_tier'] = df['risk_score'].apply(_assign_tier)
+        
+        df['socioeconomic_group'] = df['financial_stress_index'].apply(lambda x: 'high_stress' if x >= 3 else 'low_stress')
+        df['gender_label'] = df['gender'].map({0: 'Female', 1: 'Male'})
+        df['intersection'] = df['gender'].map({0: 'female', 1: 'male'}) + '_' + df['socioeconomic_group']
+        
+        df = _simulate_shap_factors(df)
+        df['reason_text'] = df.apply(_build_reason_text, axis=1)
+        return df
+
+    df = df.reset_index(drop=True)
+
+    # Assign student IDs (row index)
+    df.insert(0, 'student_id', range(1, len(df) + 1))
+
+    # Binary target encoding
+    df['dropout_label'] = (df['target'] == 'Dropout').astype(int)
+
+    # --- Engineered features ---
+    # 1. grade_delta
+    df['grade_delta'] = (df['curricular_units_2nd_sem_grade']
+                         - df['curricular_units_1st_sem_grade'])
+
+    # 2. absenteeism_trend
     enr1 = df['curricular_units_1st_sem_enrolled']
     app1 = df['curricular_units_1st_sem_approved']
     enr2 = df['curricular_units_2nd_sem_enrolled']
     app2 = df['curricular_units_2nd_sem_approved']
-    
-    if 'absenteeism_trend' not in df.columns:
-        df['absenteeism_trend'] = ((enr1 - app1 + enr2 - app2) / (enr1 + enr2 + 1))
-        
-    if 'financial_stress_index' not in df.columns:
-        df['financial_stress_index'] = df['debtor'] * 2 + (1 - df['tuition_fees_up_to_date']) * 2 + (1 - df['scholarship_holder'])
-        
-    if 'engagement_score' not in df.columns:
-        df['engagement_score'] = (app1 / (enr1 + 1)) + (app2 / (enr2 + 1)) + (df['curricular_units_1st_sem_evaluations'] + df['curricular_units_2nd_sem_evaluations']) / 20
+    df['absenteeism_trend'] = ((enr1 - app1 + enr2 - app2)
+                               / (enr1 + enr2 + 1))
 
-    # Fallback to simulation if risk processing didn't happen in Databricks
-    if 'risk_score' not in df.columns:
-        df['risk_score'] = _simulate_risk_scores(df)
-        df['dropout_predicted'] = (df['risk_score'] >= 0.40).astype(int)
-        df['intervention_tier'] = df['risk_score'].apply(_assign_tier)
-        df = _simulate_shap_factors(df)
-        df['reason_text'] = df.apply(_build_reason_text, axis=1)
+    # 3. financial_stress_index (range 0-5)
+    df['financial_stress_index'] = (
+        df['debtor'] * 2
+        + (1 - df['tuition_fees_up_to_date']) * 2
+        + (1 - df['scholarship_holder'])
+    )
 
-    # Missing intersection/demographics (fallback)
-    if 'socioeconomic_group' not in df.columns:
-        df['socioeconomic_group'] = df['financial_stress_index'].apply(lambda x: 'high_stress' if x >= 3 else 'low_stress')
-    if 'gender_label' not in df.columns:
-        df['gender_label'] = df['gender'].map({0: 'Female', 1: 'Male'})
-    if 'intersection' not in df.columns:
-        df['intersection'] = df['gender_label'].str.lower() + '_' + df['socioeconomic_group']
+    # 4. engagement_score
+    df['engagement_score'] = (
+        (app1 / (enr1 + 1))
+        + (app2 / (enr2 + 1))
+        + (df['curricular_units_1st_sem_evaluations']
+           + df['curricular_units_2nd_sem_evaluations']) / 20
+    )
+
+    # --- Simulated risk scores (deterministic, based on features) ---
+    # Since ML notebooks are WIP, generate realistic risk scores using
+    # a logistic combination of engineered features + noise seeded by student_id
+    df['risk_score'] = _simulate_risk_scores(df)
+    df['dropout_predicted'] = (df['risk_score'] >= 0.40).astype(int)
+
+    # Intervention tier
+    df['intervention_tier'] = df['risk_score'].apply(_assign_tier)
+
+    # Socioeconomic group
+    df['socioeconomic_group'] = df['financial_stress_index'].apply(
+        lambda x: 'high_stress' if x >= 3 else 'low_stress')
+
+    # Gender label
+    df['gender_label'] = df['gender'].map({0: 'Female', 1: 'Male'})
+
+    # Intersection group
+    df['intersection'] = (
+        df['gender'].map({0: 'female', 1: 'male'})
+        + '_' + df['socioeconomic_group']
+    )
+
+    # --- SHAP-like top-3 factors (simulated from feature contributions) ---
+    df = _simulate_shap_factors(df)
+
+    # --- reason_text ---
+    df['reason_text'] = df.apply(_build_reason_text, axis=1)
 
     # --- Phase 2: Sentiment Score (simulated from engagement + absenteeism) ---
     es_norm = df['engagement_score'].clip(0, 4) / 4.0
@@ -171,6 +225,7 @@ def load_and_process_data():
                       & (df['sentiment_score'] < 0.40)).astype(int)
 
     return df
+
 
 
 def _simulate_risk_scores(df):
