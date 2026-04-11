@@ -24,8 +24,6 @@ print(f"✅ Bronze table loaded: {df.count()} rows, {len(df.columns)} columns")
 
 # MAGIC %md
 # MAGIC ## 2.2 Verify Column Names
-# MAGIC
-# MAGIC Columns were already cleaned by Databricks during upload (lowercase, underscores).
 
 # COMMAND ----------
 
@@ -38,17 +36,16 @@ for i, col in enumerate(df.columns, 1):
 # MAGIC %md
 # MAGIC ## 2.3 Null Handling
 # MAGIC
-# MAGIC **Strategy (per PRD):**
-# MAGIC - Numeric columns: impute with column **median** (robust to outliers)
-# MAGIC - Categorical/string columns: impute with mode or "Unknown"
-# MAGIC - **Do not drop rows** — 4,400 records is small; every row is valuable
+# MAGIC - Numeric: median imputation
+# MAGIC - String: mode imputation
+# MAGIC - No rows dropped
 
 # COMMAND ----------
 
 from pyspark.sql import functions as F
 from pyspark.sql.types import StringType
 
-# Document null counts BEFORE imputation
+# Check nulls before
 print("Null counts BEFORE imputation:")
 print("=" * 50)
 total_nulls = 0
@@ -86,7 +83,7 @@ print(f"✅ Null counts AFTER imputation: {total_nulls_after} (should be 0)")
 # MAGIC %md
 # MAGIC ## 2.4 Binary Target Encoding
 # MAGIC
-# MAGIC Create `dropout_label`: **1** where `target == "Dropout"`, else **0**.
+# MAGIC `dropout_label`: **1** if `target == "Dropout"`, else **0**.
 
 # COMMAND ----------
 
@@ -95,7 +92,6 @@ df = df.withColumn(
     F.when(F.col("target") == "Dropout", 1).otherwise(0)
 )
 
-# Verify class balance
 print("Binary target distribution:")
 df.groupBy("dropout_label").count().orderBy("dropout_label").show()
 
@@ -112,9 +108,7 @@ print(f"  scale_pos_weight for XGBoost: {neg/pos:.2f}")
 # MAGIC ## 2.5 Feature Engineering
 # MAGIC
 # MAGIC ### Feature 1: `grade_delta`
-# MAGIC **Formula:** `sem2_grade − sem1_grade`
-# MAGIC
-# MAGIC Negative = declining academic performance (strong dropout signal)
+# MAGIC `sem2_grade − sem1_grade` — Negative = declining performance
 
 # COMMAND ----------
 
@@ -130,9 +124,7 @@ df.select("curricular_units_1st_sem_grade", "curricular_units_2nd_sem_grade", "g
 
 # MAGIC %md
 # MAGIC ### Feature 2: `absenteeism_trend`
-# MAGIC **Formula:** `(enr1 − app1 + enr2 − app2) / (enr1 + enr2 + 1)`
-# MAGIC
-# MAGIC Rate of enrolling but not completing units. Higher = more disengagement.
+# MAGIC `(enr1 − app1 + enr2 − app2) / (enr1 + enr2 + 1)` — Higher = more disengagement
 
 # COMMAND ----------
 
@@ -152,9 +144,7 @@ df.select("curricular_units_1st_sem_enrolled", "curricular_units_1st_sem_approve
 
 # MAGIC %md
 # MAGIC ### Feature 3: `financial_stress_index`
-# MAGIC **Formula:** `debtor × 2 + (1 − tuition_fees_up_to_date) × 2 + (1 − scholarship_holder)`
-# MAGIC
-# MAGIC Range 0–5 (higher = more financial stress)
+# MAGIC `debtor×2 + (1−tuition_fees_up_to_date)×2 + (1−scholarship_holder)` — Range 0–5
 
 # COMMAND ----------
 
@@ -171,10 +161,8 @@ df.groupBy("financial_stress_index").count().orderBy("financial_stress_index").s
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ### Feature 4 (Bonus): `engagement_score`
-# MAGIC **Formula:** `(app1/(enr1+1)) + (app2/(enr2+1)) + (eval1+eval2)/20`
-# MAGIC
-# MAGIC Composite unit-completion + assessment participation. Higher = more engaged.
+# MAGIC ### Feature 4: `engagement_score`
+# MAGIC `(app1/(enr1+1)) + (app2/(enr2+1)) + (eval1+eval2)/20`
 
 # COMMAND ----------
 
@@ -211,7 +199,6 @@ print(f"✅ student_id added (range: 0 to {df.count() - 1})")
 
 # COMMAND ----------
 
-# Verify no nulls
 print("Final null check:")
 any_nulls = False
 for col_name in df.columns:
@@ -222,7 +209,6 @@ for col_name in df.columns:
 if not any_nulls:
     print("  ✅ Zero nulls in all columns")
 
-# Verify required columns exist
 required = ["dropout_label", "grade_delta", "absenteeism_trend",
             "financial_stress_index", "engagement_score", "student_id", "target"]
 print(f"\nRequired columns check:")
@@ -230,7 +216,6 @@ for col in required:
     exists = col in df.columns
     print(f"  {'✅' if exists else '❌'} {col}")
 
-# Verify dropout_label values
 distinct_labels = [row.dropout_label for row in df.select("dropout_label").distinct().collect()]
 print(f"\ndropout_label distinct values: {sorted(distinct_labels)} (should be [0, 1])")
 print(f"\nSilver table shape: {df.count()} rows × {len(df.columns)} columns")
