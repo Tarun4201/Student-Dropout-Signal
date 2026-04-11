@@ -10,10 +10,6 @@
 
 # COMMAND ----------
 
-# MAGIC %pip install shap
-
-# COMMAND ----------
-
 import shap
 import mlflow
 import mlflow.sklearn
