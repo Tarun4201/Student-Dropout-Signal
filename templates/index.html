@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="The Dropout Signal — Fair Early-Warning Pipeline for Student Dropout Prediction. AI-powered dashboard identifying at-risk students with calibrated risk scores and explainable insights.">
+    <title>The Dropout Signal — Student Dropout Prediction Dashboard</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@0.344.0/dist/umd/lucide.js"></script>
+
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <!-- ===== ANIMATED BACKGROUND ===== -->
+    <div class="bg-animation">
+        <div class="bg-orb bg-orb-1"></div>
+        <div class="bg-orb bg-orb-2"></div>
+        <div class="bg-orb bg-orb-3"></div>
+    </div>
+
+    <!-- ===== NAVBAR ===== -->
+    <nav class="navbar" id="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">
+                <div class="brand-icon">
+                    <i data-lucide="signal" class="brand-icon-svg"></i>
+                </div>
+                <div class="brand-text">
+                    <span class="brand-name">The Dropout Signal</span>
+                    <span class="brand-tagline">Fair Early-Warning Pipeline</span>
+                </div>
+            </div>
+            <div class="nav-links">
+                <a href="#hero" class="nav-link active" data-section="hero">Home</a>
+                <a href="#dashboard" class="nav-link" data-section="dashboard">Dashboard</a>
+                <a href="#students" class="nav-link" data-section="students">Students</a>
+                <a href="#fairness" class="nav-link" data-section="fairness">Fairness</a>
+                <a href="#pipeline" class="nav-link" data-section="pipeline">Pipeline</a>
+            </div>
+            <div class="nav-actions">
+                <span class="status-chip status-live">
+                    <span class="status-dot"></span>
+                    Live Data
+                </span>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ===== HERO SECTION ===== -->
+    <section id="hero" class="hero-section">
+        <div class="hero-container">
+            <div class="hero-content">
+                <div class="hero-badge">
+                    <i data-lucide="shield-check"></i>
+                    <span>Fair & Explainable AI</span>
+                </div>
+                <h1 class="hero-title">
+                    Predict Student <span class="gradient-text">Dropout Risk</span> Before It Happens
+                </h1>
+                <p class="hero-subtitle">
+                    An AI-powered early-warning system with <em>calibrated</em> risk scores, 
+                    intersectional fairness audits, and plain-English explanations — designed 
+                    for academic advisors who don't speak ML.
+                </p>
+                <div class="hero-stats">
+                    <div class="hero-stat">
+                        <span class="hero-stat-value" id="hero-total">—</span>
+                        <span class="hero-stat-label">Students Analysed</span>
+                    </div>
+                    <div class="hero-stat-divider"></div>
+                    <div class="hero-stat">
+                        <span class="hero-stat-value" id="hero-atrisk">—</span>
+                        <span class="hero-stat-label">At-Risk Identified</span>
+                    </div>
+                    <div class="hero-stat-divider"></div>
+                    <div class="hero-stat">
+                        <span class="hero-stat-value" id="hero-features">37+</span>
+                        <span class="hero-stat-label">Features Processed</span>
+                    </div>
+                </div>
+                <div class="hero-cta">
+                    <a href="#dashboard" class="btn btn-primary btn-lg">
+                        <i data-lucide="bar-chart-3"></i>
+                        Explore Dashboard
+                    </a>
+                    <a href="#pipeline" class="btn btn-glass btn-lg">
+                        <i data-lucide="git-branch"></i>
+                        View Pipeline
+                    </a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="hero-card hero-card-1">
+                    <div class="hero-card-header">
+                        <i data-lucide="alert-triangle" class="text-amber"></i>
+                        <span>High Risk Student</span>
+                    </div>
+                    <div class="hero-card-body">
+                        <div class="risk-meter risk-high">
+                            <div class="risk-meter-fill" style="width: 87%"></div>
+                        </div>
+                        <span class="risk-value">0.87</span>
+                    </div>
+                    <p class="hero-card-reason">"Grade fell 4.2pts; financial stress score 4/5; 78% unit non-completion rate."</p>
+                </div>
+                <div class="hero-card hero-card-2">
+                    <div class="hero-card-header">
+                        <i data-lucide="shield-check" class="text-emerald"></i>
+                        <span>Fairness Audit</span>
+                    </div>
+                    <div class="hero-card-body">
+                        <div class="audit-bar-mini">
+                            <div class="audit-bar-label">Gender Parity</div>
+                            <div class="audit-bar-track">
+                                <div class="audit-bar-thumb" style="left: 45%"></div>
+                            </div>
+                        </div>
+                        <div class="audit-bar-mini">
+                            <div class="audit-bar-label">Intersectional</div>
+                            <div class="audit-bar-track">
+                                <div class="audit-bar-thumb" style="left: 62%"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="hero-card hero-card-3">
+                    <div class="hero-card-header">
+                        <i data-lucide="brain" class="text-violet"></i>
+                        <span>Top Risk Factor</span>
+                    </div>
+                    <div class="hero-card-body">
+                        <span class="factor-name">grade_delta</span>
+                        <span class="factor-desc">Declining semester grades</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="hero-scroll-indicator">
+            <i data-lucide="chevrons-down"></i>
+        </div>
+    </section>
+
+    <!-- ===== DASHBOARD SECTION ===== -->
+    <section id="dashboard" class="section">
+        <div class="section-container">
+            <div class="section-header">
+                <div class="section-badge">
+                    <i data-lucide="layout-dashboard"></i>
+                    <span>Overview</span>
+                </div>
+                <h2 class="section-title">Risk Intelligence Dashboard</h2>
+                <p class="section-subtitle">Real-time metrics from the UCI Dropout Dataset — 4,424 student records, 37 features</p>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="kpi-grid" id="kpi-grid">
+                <div class="kpi-card" id="kpi-total">
+                    <div class="kpi-icon kpi-icon-blue">
+                        <i data-lucide="users"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <span class="kpi-value" data-counter="total">—</span>
+                        <span class="kpi-label">Total Students</span>
+                    </div>
+                    <div class="kpi-trend kpi-trend-neutral">
+                        <i data-lucide="database"></i>
+                        <span>UCI Dataset</span>
+                    </div>
+                </div>
+                <div class="kpi-card" id="kpi-dropout">
+                    <div class="kpi-icon kpi-icon-red">
+                        <i data-lucide="user-x"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <span class="kpi-value" data-counter="dropouts">—</span>
+                        <span class="kpi-label">Actual Dropouts</span>
+                    </div>
+                    <div class="kpi-trend kpi-trend-down">
+                        <i data-lucide="trending-down"></i>
+                        <span id="kpi-rate">—% rate</span>
+                    </div>
+                </div>
+                <div class="kpi-card" id="kpi-atrisk">
+                    <div class="kpi-icon kpi-icon-amber">
+                        <i data-lucide="alert-triangle"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <span class="kpi-value" data-counter="atrisk">—</span>
+                        <span class="kpi-label">Predicted At-Risk</span>
+                    </div>
+                    <div class="kpi-trend kpi-trend-up">
+                        <i data-lucide="target"></i>
+                        <span>Model Flagged</span>
+                    </div>
+                </div>
+                <div class="kpi-card" id="kpi-high">
+                    <div class="kpi-icon kpi-icon-rose">
+                        <i data-lucide="flame"></i>
+                    </div>
+                    <div class="kpi-body">
+                        <span class="kpi-value" data-counter="high">—</span>
+                        <span class="kpi-label">High Risk (≥0.70)</span>
+                    </div>
+                    <div class="kpi-trend kpi-trend-critical">
+                        <i data-lucide="zap"></i>
+                        <span>Immediate Action</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="charts-grid">
+                <div class="chart-card" id="chart-risk-dist">
+                    <div class="chart-header">
+                        <h3 class="chart-title">
+                            <i data-lucide="bar-chart-3"></i>
+                            Risk Score Distribution
+                        </h3>
+                        <span class="chart-badge">Calibrated Probabilities</span>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="riskDistChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card" id="chart-tier-dist">
+                    <div class="chart-header">
+                        <h3 class="chart-title">
+                            <i data-lucide="pie-chart"></i>
+                            Intervention Tiers
+                        </h3>
+                        <span class="chart-badge">Action Required</span>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="tierChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card" id="chart-target-dist">
+                    <div class="chart-header">
+                        <h3 class="chart-title">
+                            <i data-lucide="target"></i>
+                            Outcome Distribution
+                        </h3>
+                        <span class="chart-badge">Actual Labels</span>
+                    </div>
+                    <div class="chart-body">
+                        <canvas id="targetChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card chart-card-wide" id="chart-features">
+                    <div class="chart-header">
+                        <h3 class="chart-title">
+                            <i data-lucide="bar-chart-horizontal"></i>
+                            Feature Importance
+                        </h3>
+                        <span class="chart-badge">Correlation with Dropout</span>
+                    </div>
+                    <div class="chart-body chart-body-tall">
+                        <canvas id="featureChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== STUDENTS TABLE SECTION ===== -->
+    <section id="students" class="section section-dark">
+        <div class="section-container">
+            <div class="section-header">
+                <div class="section-badge">
+                    <i data-lucide="users"></i>
+                    <span>Student Records</span>
+                </div>
+                <h2 class="section-title">At-Risk Student Explorer</h2>
+                <p class="section-subtitle">Search, filter, and explore individual student risk profiles with plain-English explanations</p>
+            </div>
+
+            <!-- Filters -->
+            <div class="table-controls" id="table-controls">
+                <div class="search-box">
+                    <i data-lucide="search"></i>
+                    <input type="text" id="student-search" placeholder="Search by Student ID..." autocomplete="off">
+                </div>
+                <div class="filter-pills">
+                    <button class="pill pill-active" data-tier="all" id="pill-all">
+                        <span>All</span>
+                        <span class="pill-count" id="pill-count-all">—</span>
+                    </button>
+                    <button class="pill pill-high" data-tier="high" id="pill-high">
+                        <i data-lucide="flame"></i>
+                        <span>High</span>
+                        <span class="pill-count" id="pill-count-high">—</span>
+                    </button>
+                    <button class="pill pill-medium" data-tier="medium" id="pill-medium">
+                        <i data-lucide="alert-circle"></i>
+                        <span>Medium</span>
+                        <span class="pill-count" id="pill-count-medium">—</span>
+                    </button>
+                    <button class="pill pill-low" data-tier="low" id="pill-low">
+                        <i data-lucide="shield"></i>
+                        <span>Low</span>
+                        <span class="pill-count" id="pill-count-low">—</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Table -->
+            <div class="table-wrapper">
+                <table class="data-table" id="students-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="student_id">ID <i data-lucide="chevrons-up-down"></i></th>
+                            <th class="sortable" data-sort="risk_score">Risk Score <i data-lucide="chevrons-up-down"></i></th>
+                            <th>Tier</th>
+                            <th>Status</th>
+                            <th class="sortable" data-sort="grade_delta">Grade Δ <i data-lucide="chevrons-up-down"></i></th>
+                            <th class="sortable" data-sort="financial_stress_index">Fin. Stress <i data-lucide="chevrons-up-down"></i></th>
+                            <th>Gender</th>
+                            <th>Reason</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody id="students-tbody">
+                        <tr><td colspan="9" class="table-loading">Loading students...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination" id="pagination">
+                <button class="page-btn" id="prev-page" disabled>
+                    <i data-lucide="chevron-left"></i>
+                    Previous
+                </button>
+                <span class="page-info" id="page-info">Page 1 of 1</span>
+                <button class="page-btn" id="next-page" disabled>
+                    Next
+                    <i data-lucide="chevron-right"></i>
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== FAIRNESS SECTION ===== -->
+    <section id="fairness" class="section">
+        <div class="section-container">
+            <div class="section-header">
+                <div class="section-badge section-badge-emerald">
+                    <i data-lucide="shield-check"></i>
+                    <span>Fairness Audit</span>
+                </div>
+                <h2 class="section-title">Bias & Fairness Analysis</h2>
+                <p class="section-subtitle">Marginal and intersectional parity metrics — the audit most teams skip entirely</p>
+            </div>
+
+            <!-- Differentiator callout -->
+            <div class="callout callout-star">
+                <div class="callout-icon">★</div>
+                <div class="callout-text">
+                    <strong>Intersectional Fairness</strong> — A model can pass a marginal gender audit 
+                    and a marginal socioeconomic audit while still systematically under-serving female 
+                    students in financial hardship. We compute all four gender × socioeconomic intersections.
+                </div>
+            </div>
+
+            <div class="fairness-grid" id="fairness-grid">
+                <!-- Marginal Audit -->
+                <div class="fairness-card" id="fairness-marginal">
+                    <div class="fairness-card-header">
+                        <h3><i data-lucide="split"></i> Marginal Audit</h3>
+                        <span class="fairness-badge">By Single Attribute</span>
+                    </div>
+                    <div class="fairness-card-body" id="marginal-metrics">
+                        <div class="loading-shimmer"></div>
+                    </div>
+                </div>
+
+                <!-- Intersectional Audit -->
+                <div class="fairness-card fairness-card-featured" id="fairness-intersectional">
+                    <div class="fairness-card-header">
+                        <h3><i data-lucide="grid-3x3"></i> Intersectional Audit ★</h3>
+                        <span class="fairness-badge fairness-badge-star">Differentiator</span>
+                    </div>
+                    <div class="fairness-card-body" id="intersectional-metrics">
+                        <div class="loading-shimmer"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fairness Charts -->
+            <div class="charts-grid">
+                <div class="chart-card chart-card-wide" id="chart-fairness-dp">
+                    <div class="chart-header">
+                        <h3 class="chart-title">
+                            <i data-lucide="scale"></i>
+                            Demographic Parity Difference
+                        </h3>
+                        <span class="chart-badge">|P(pred=1|A) − P(pred=1|B)|</span>
+                    </div>
+                    <div class="chart-body chart-body-tall">
+                        <canvas id="dpChart"></canvas>
+                    </div>
+                </div>
+                <div class="chart-card chart-card-wide" id="chart-fairness-eo">
+                    <div class="chart-header">
+                        <h3 class="chart-title">
+                            <i data-lucide="equal"></i>
+                            Equal Opportunity Difference
+                        </h3>
+                        <span class="chart-badge">|TPR(A) − TPR(B)|</span>
+                    </div>
+                    <div class="chart-body chart-body-tall">
+                        <canvas id="eoChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== PIPELINE SECTION ===== -->
+    <section id="pipeline" class="section section-dark">
+        <div class="section-container">
+            <div class="section-header">
+                <div class="section-badge section-badge-violet">
+                    <i data-lucide="git-branch"></i>
+                    <span>Architecture</span>
+                </div>
+                <h2 class="section-title">Medallion Pipeline Architecture</h2>
+                <p class="section-subtitle">Bronze → Silver → Gold: a governed, explainable ML pipeline on Databricks</p>
+            </div>
+
+            <div class="pipeline-flow" id="pipeline-flow">
+                <!-- Populated by JS -->
+            </div>
+
+            <!-- 3 Differentiators -->
+            <div class="diff-grid">
+                <div class="diff-card">
+                    <div class="diff-icon diff-icon-blue">
+                        <i data-lucide="target"></i>
+                    </div>
+                    <h3 class="diff-title">Platt Calibration ★</h3>
+                    <p class="diff-desc">Raw XGBoost probabilities → true calibrated probabilities via CalibratedClassifierCV. Makes intervention thresholds statistically meaningful.</p>
+                </div>
+                <div class="diff-card">
+                    <div class="diff-icon diff-icon-emerald">
+                        <i data-lucide="shield-check"></i>
+                    </div>
+                    <h3 class="diff-title">Intersectional Fairness ★</h3>
+                    <p class="diff-desc">Gender × socioeconomic cross-product (4 groups). Detects disparities invisible to marginal audits. The analysis most teams skip entirely.</p>
+                </div>
+                <div class="diff-card">
+                    <div class="diff-icon diff-icon-amber">
+                        <i data-lucide="message-square-text"></i>
+                    </div>
+                    <h3 class="diff-title">reason_text ★</h3>
+                    <p class="diff-desc">Plain-English sentences for advisors built from each student's top-3 contributing factors. No ML knowledge required to act.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== STUDENT DETAIL MODAL ===== -->
+    <div class="modal-overlay" id="student-modal">
+        <div class="modal-content">
+            <button class="modal-close" id="modal-close">
+                <i data-lucide="x"></i>
+            </button>
+            <div class="modal-body" id="modal-body">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="footer">
+        <div class="footer-container">
+            <div class="footer-brand">
+                <i data-lucide="signal"></i>
+                <span>The Dropout Signal v2.0</span>
+            </div>
+            <div class="footer-info">
+                <span>24-Hour Hackathon · April 2026</span>
+                <span>·</span>
+                <span>Databricks · Delta Lake · MLflow · SHAP</span>
+            </div>
+        </div>
+    </footer>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
