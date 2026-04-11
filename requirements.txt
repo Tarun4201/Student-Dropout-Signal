@@ -3,3 +3,5 @@ pandas>=2.0.0
 numpy>=1.26.0
 databricks-sql-connector>=3.0.0
 python-dotenv>=1.0.0
+xgboost==2.0.3
+shap==0.45.0

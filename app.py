@@ -132,15 +132,39 @@ def load_and_process_data():
         df['financial_stress_index'] = df['debtor'] * 2 + (1 - df['tuition_fees_up_to_date']) * 2 + (1 - df['scholarship_holder'])
         df['engagement_score'] = (app1 / (enr1 + 1)) + (app2 / (enr2 + 1)) + (df['curricular_units_1st_sem_evaluations'] + df['curricular_units_2nd_sem_evaluations']) / 20
         
-        df['risk_score'] = _simulate_risk_scores(df)
-        df['dropout_predicted'] = (df['risk_score'] >= 0.40).astype(int)
-        df['intervention_tier'] = df['risk_score'].apply(_assign_tier)
-        
-        df['socioeconomic_group'] = df['financial_stress_index'].apply(lambda x: 'high_stress' if x >= 3 else 'low_stress')
-        df['gender_label'] = df['gender'].map({0: 'Female', 1: 'Male'})
-        df['intersection'] = df['gender'].map({0: 'female', 1: 'male'}) + '_' + df['socioeconomic_group']
-        
-        df = _simulate_shap_factors(df)
+        # --- Real Local HistGradientBoosting + SHAP Fallback Pipeline ---
+        try:
+            import fallback_ml
+            
+            # Train model locally if it hasn't been trained yet
+            if not fallback_ml.is_ready():
+                fallback_ml.train_fallback_model(df, target_col='dropout_label')
+                
+            # 1. Generate real risk scores
+            df['risk_score'] = fallback_ml.get_risk_scores(df)
+            df['dropout_predicted'] = (df['risk_score'] >= 0.40).astype(int)
+            
+            # 2. Assign tiers based on new probabilities
+            df['intervention_tier'] = df['risk_score'].apply(_assign_tier)
+            
+            # 3. Socioeconomic & Gender labels
+            df['socioeconomic_group'] = df['financial_stress_index'].apply(lambda x: 'high_stress' if x >= 3 else 'low_stress')
+            df['gender_label'] = df['gender'].map({0: 'Female', 1: 'Male'})
+            df['intersection'] = df['gender'].map({0: 'female', 1: 'male'}) + '_' + df['socioeconomic_group']
+            
+            # 4. Generate real SHAP values
+            df['top_shap_factors'] = fallback_ml.get_shap_factors(df)
+            
+        except ImportError as e:
+            print(f"⚠️ sklearn or shap not installed! Using Fake math fallback. ({e})")
+            df['risk_score'] = _simulate_risk_scores(df)
+            df['dropout_predicted'] = (df['risk_score'] >= 0.40).astype(int)
+            df['intervention_tier'] = df['risk_score'].apply(_assign_tier)
+            df['socioeconomic_group'] = df['financial_stress_index'].apply(lambda x: 'high_stress' if x >= 3 else 'low_stress')
+            df['gender_label'] = df['gender'].map({0: 'Female', 1: 'Male'})
+            df['intersection'] = df['gender'].map({0: 'female', 1: 'male'}) + '_' + df['socioeconomic_group']
+            df = _simulate_shap_factors(df)
+            
         df['reason_text'] = df.apply(_build_reason_text, axis=1)
         return df
 
@@ -180,30 +204,42 @@ def load_and_process_data():
            + df['curricular_units_2nd_sem_evaluations']) / 20
     )
 
-    # --- Simulated risk scores (deterministic, based on features) ---
-    # Since ML notebooks are WIP, generate realistic risk scores using
-    # a logistic combination of engineered features + noise seeded by student_id
-    df['risk_score'] = _simulate_risk_scores(df)
-    df['dropout_predicted'] = (df['risk_score'] >= 0.40).astype(int)
-
-    # Intervention tier
-    df['intervention_tier'] = df['risk_score'].apply(_assign_tier)
-
-    # Socioeconomic group
-    df['socioeconomic_group'] = df['financial_stress_index'].apply(
-        lambda x: 'high_stress' if x >= 3 else 'low_stress')
-
-    # Gender label
-    df['gender_label'] = df['gender'].map({0: 'Female', 1: 'Male'})
-
-    # Intersection group
-    df['intersection'] = (
-        df['gender'].map({0: 'female', 1: 'male'})
-        + '_' + df['socioeconomic_group']
-    )
-
-    # --- SHAP-like top-3 factors (simulated from feature contributions) ---
-    df = _simulate_shap_factors(df)
+    # --- Real Local XGBoost + SHAP Fallback Pipeline ---
+    try:
+        import fallback_ml
+        
+        # Train model locally if it hasn't been trained yet
+        if not fallback_ml.is_ready():
+            fallback_ml.train_fallback_model(df, target_col='dropout_label')
+            
+        # 1. Generate real risk scores
+        probs = fallback_ml.get_risk_scores(df)
+        df['risk_score'] = probs
+        df['dropout_predicted'] = (df['risk_score'] >= 0.40).astype(int)
+        
+        # [DEBUG] Probability distribution check
+        print(f"\n[DEBUG ML] Distribution: min={probs.min():.4f}, max={probs.max():.4f}, mean={probs.mean():.4f}")
+        
+        # 2. Assign tiers based on new probabilities
+        df['intervention_tier'] = df['risk_score'].apply(_assign_tier)
+        
+        # 3. Socioeconomic & Gender labels
+        df['socioeconomic_group'] = df['financial_stress_index'].apply(lambda x: 'high_stress' if x >= 3 else 'low_stress')
+        df['gender_label'] = df['gender'].map({0: 'Female', 1: 'Male'})
+        df['intersection'] = df['gender'].map({0: 'female', 1: 'male'}) + '_' + df['socioeconomic_group']
+        
+        # 4. Generate real SHAP values
+        df['top_shap_factors'] = fallback_ml.get_shap_factors(df)
+        
+    except ImportError:
+        print("⚠️ xgboost or shap not installed! Using Fake math fallback.")
+        df['risk_score'] = _simulate_risk_scores(df)
+        df['dropout_predicted'] = (df['risk_score'] >= 0.40).astype(int)
+        df['intervention_tier'] = df['risk_score'].apply(_assign_tier)
+        df['socioeconomic_group'] = df['financial_stress_index'].apply(lambda x: 'high_stress' if x >= 3 else 'low_stress')
+        df['gender_label'] = df['gender'].map({0: 'Female', 1: 'Male'})
+        df['intersection'] = df['gender'].map({0: 'female', 1: 'male'}) + '_' + df['socioeconomic_group']
+        df = _simulate_shap_factors(df)
 
     # --- reason_text ---
     df['reason_text'] = df.apply(_build_reason_text, axis=1)
@@ -264,11 +300,17 @@ def _simulate_risk_scores(df):
 
 
 def _assign_tier(score):
+    """
+    Categorize students into risk buckets based on dropout probability.
+    High: >= 0.70
+    Medium: >= 0.40
+    Low: < 0.40
+    """
     if score >= 0.70:
-        return 'high'
+        return 'High'
     elif score >= 0.40:
-        return 'medium'
-    return 'low'
+        return 'Medium'
+    return 'Low'
 
 
 # Factor interpretations from PRD
@@ -349,15 +391,26 @@ def _simulate_shap_factors(df):
 
 def _build_reason_text(row):
     """Build plain-English reason sentence from top-3 SHAP factors."""
+    import json
+    
+    # Support new real ML fallback that outputs top_shap_factors directly
+    if 'top_shap_factors' in row and isinstance(row.get('top_shap_factors'), str):
+        try:
+            factors = json.loads(row['top_shap_factors'])
+            return "Driven by risk factors: " + ', '.join(factors).lower() + '.'
+        except:
+            pass
+            
     reasons = []
     for i in range(1, 4):
-        feature = row[f'shap_factor_{i}']
+        feature = row.get(f'shap_factor_{i}')
+        if not feature: continue
         value = row.get(feature, None)
         if feature in FACTOR_INTERPRETATIONS and value is not None:
             reasons.append(FACTOR_INTERPRETATIONS[feature](value))
         else:
             reasons.append(feature.replace('_', ' '))
-    return '; '.join(reasons).capitalize() + '.'
+    return '; '.join(reasons).capitalize() + '.' if reasons else "No dominant risk factor identified."
 
 
 # ---------------------------------------------------------------------------
@@ -757,48 +810,71 @@ def api_features():
 
 @app.route('/api/pipeline')
 def api_pipeline():
-    """Pipeline architecture metadata."""
+    """Pipeline architecture metadata, fetching live status from Databricks."""
+    import requests
+    import os
+    from dotenv import load_dotenv
+
+    load_dotenv(os.path.join(os.path.dirname(__file__), '.env'), override=True)
+    token = os.getenv("DATABRICKS_TOKEN")
+    host = os.getenv("DATABRICKS_SERVER_HOSTNAME")
+
+    # Default static definitions
+    layer_defs = [
+        {'id': 'bronze_task', 'name': 'Bronze Layer', 'table': 'bronze.uci_dropout', 'description': 'Raw CSV ingest — zero transformations', 'status': 'pending'},
+        {'id': 'silver_task', 'name': 'Silver Layer', 'table': 'silver.uci_dropout_clean', 'description': 'Cleaned, features engineered, target encoded', 'status': 'pending', 'records': len(DF)},
+        {'id': 'training_task', 'name': 'Model Training', 'table': 'MLflow: dropout_signal_hackathon', 'description': 'LogReg + XGBoost + Platt calibration', 'status': 'pending'},
+        {'id': 'fairness_', 'name': 'Fairness Audit', 'table': 'audit.fairness_metrics', 'description': 'Marginal + intersectional parity metrics', 'status': 'pending'},
+        {'id': 'shap_task', 'name': 'SHAP Explainability', 'table': 'silver.shap_results', 'description': 'Per-student top-3 SHAP factors', 'status': 'pending'},
+        {'id': 'gold_task', 'name': 'Gold Table', 'table': 'gold.at_risk_students', 'description': 'Final at-risk students with reason_text + tiers', 'status': 'pending'},
+    ]
+
+    try:
+        if token and host:
+            headers = {"Authorization": f"Bearer {token}"}
+            # Fetch the first job
+            jobs_resp = requests.get(f"https://{host}/api/2.1/jobs/list", headers=headers, timeout=5)
+            if jobs_resp.status_code == 200:
+                jobs = jobs_resp.json().get('jobs', [])
+                if jobs:
+                    job_id = jobs[0]['job_id']
+                    # Fetch latest run
+                    runs_resp = requests.get(f"https://{host}/api/2.1/jobs/runs/list?job_id={job_id}&limit=1", headers=headers, timeout=5)
+                    if runs_resp.status_code == 200:
+                        runs = runs_resp.json().get('runs', [])
+                        if runs:
+                            run_id = runs[0]['run_id']
+                            # Fetch run details to get task states
+                            run_detail_resp = requests.get(f"https://{host}/api/2.1/jobs/runs/get?run_id={run_id}", headers=headers, timeout=5)
+                            if run_detail_resp.status_code == 200:
+                                tasks = run_detail_resp.json().get('tasks', [])
+                                task_states = {}
+                                for t in tasks:
+                                    state = t.get('state', {})
+                                    ls = state.get('life_cycle_state', '')
+                                    rs = state.get('result_state', '')
+                                    if ls == 'TERMINATED' and rs == 'SUCCESS':
+                                        status = 'complete'
+                                    elif ls in ['PENDING', 'QUEUED']:
+                                        status = 'pending'
+                                    elif ls == 'RUNNING':
+                                        status = 'in_progress'
+                                    elif rs in ['FAILED', 'CANCELED', 'TIMEDOUT']:
+                                        status = 'failed'
+                                    else:
+                                        status = 'pending'
+                                    task_states[t.get('task_key')] = status
+                                
+                                # Apply status to layers
+                                for layer in layer_defs:
+                                    if layer['id'] in task_states:
+                                        layer['status'] = task_states[layer['id']]
+    except Exception as e:
+        print(f"[WARN] Failed to fetch Databricks Pipeline status: {e}")
+        pass # Fallback to default 'pending'
+
     return jsonify({
-        'layers': [
-            {
-                'name': 'Bronze Layer',
-                'table': 'bronze.uci_dropout',
-                'description': 'Raw CSV ingest — zero transformations',
-                'status': 'complete',
-                'records': len(DF),
-            },
-            {
-                'name': 'Silver Layer',
-                'table': 'silver.uci_dropout_clean',
-                'description': 'Cleaned, features engineered, target encoded',
-                'status': 'complete',
-                'records': len(DF),
-            },
-            {
-                'name': 'Model Training',
-                'table': 'MLflow: dropout_signal_hackathon',
-                'description': 'LogReg + XGBoost + Platt calibration',
-                'status': 'complete',
-            },
-            {
-                'name': 'Fairness Audit',
-                'table': 'audit.fairness_metrics',
-                'description': 'Marginal + intersectional parity metrics',
-                'status': 'complete',
-            },
-            {
-                'name': 'SHAP Explainability',
-                'table': 'silver.shap_results',
-                'description': 'Per-student top-3 SHAP factors',
-                'status': 'complete',
-            },
-            {
-                'name': 'Gold Table',
-                'table': 'gold.at_risk_students',
-                'description': 'Final at-risk students with reason_text + tiers',
-                'status': 'complete',
-            },
-        ],
+        'layers': layer_defs,
         'differentiators': [
             'Platt Calibration — scores become true probabilities',
             'Intersectional Fairness — the audit most teams skip',
@@ -856,79 +932,124 @@ def api_simulate():
     params = request.get_json(force=True)
 
     # Get adjustment values (deltas to apply)
-    scholarship_toggle = params.get('grant_scholarship', False)  # give scholarship to all non-holders
-    fee_waiver = params.get('waive_fees', False)               # mark all fees as current
-    fsi_reduction = float(params.get('fsi_reduction', 0))      # reduce FSI by N points
+    scholarship_toggle = params.get('grant_scholarship', False)
+    fee_waiver = params.get('waive_fees', False)
+    fsi_reduction = float(params.get('fsi_reduction', 0))
 
-    # Clone relevant columns
-    sim = DF[['student_id', 'grade_delta', 'absenteeism_trend',
-              'financial_stress_index', 'engagement_score',
-              'debtor', 'tuition_fees_up_to_date', 'scholarship_holder',
-              'risk_score', 'intervention_tier', 'dropout_label']].copy()
+    # 1. DATA SAFETY: Use a COPY
+    sim = DF.copy()
 
-    # Apply adjustments
+    # 2. BASELINE HARMONIZATION (CRITICAL)
+    # Re-run model on original DF to ensure comparison is fair (Baseline vs Policy)
+    try:
+        import fallback_ml
+        if not fallback_ml.is_ready():
+            fallback_ml.train_fallback_model(DF, target_col='dropout_label')
+        
+        before_probs = fallback_ml.get_risk_scores(DF)
+    except Exception as e:
+        print(f"⚠️ Baseline Calculation Fallback: {e}")
+        before_probs = DF['risk_score'].values
+
+    # 3. POLICY APPLICATION
+    # Toggle mappings:
+    # grant_scholarship -> scholarship_holder
+    # waive_fees -> tuition_fees_up_to_date
+    # fsi_reduction (already handled or clear_debt)
+    
     if scholarship_toggle:
         sim['scholarship_holder'] = 1
     if fee_waiver:
         sim['tuition_fees_up_to_date'] = 1
         sim['debtor'] = 0
 
-    # Recalculate financial_stress_index
-    sim['financial_stress_index_new'] = (
+    # 4. FEATURE RECOMPUTATION (MANDATORY)
+    # fsi = (debtor * 2) + (1 - fees_ok)*2 + (1 - scholarship)
+    sim['financial_stress_index'] = (
         sim['debtor'] * 2
         + (1 - sim['tuition_fees_up_to_date']) * 2
         + (1 - sim['scholarship_holder'])
     )
     if fsi_reduction > 0:
-        sim['financial_stress_index_new'] = (sim['financial_stress_index_new'] - fsi_reduction).clip(0, 5)
+        sim['financial_stress_index'] = (sim['financial_stress_index'] - fsi_reduction).clip(0, 5)
 
-    # Recalculate risk scores with updated features
-    sim_risk = sim.copy()
-    gd = sim_risk['grade_delta'].clip(-15, 15)
-    gd_norm = (gd - gd.min()) / (gd.max() - gd.min() + 1e-9)
-    gd_risk = 1 - gd_norm
-    at = sim_risk['absenteeism_trend'].clip(0, 1)
-    fs_new = sim_risk['financial_stress_index_new'] / 5.0
-    es = sim_risk['engagement_score'].clip(0, 4)
-    es_norm = (es - es.min()) / (es.max() - es.min() + 1e-9)
-    es_risk = 1 - es_norm
+    # 5. MODEL RE-RUN (CRITICAL)
+    try:
+        after_probs = fallback_ml.get_risk_scores(sim)
+    except Exception as e:
+        print(f"⚠️ Simulation Model Fallback: {e}")
+        # Manual fallback formula if model fails
+        sim_risk = sim.copy()
+        gd = sim_risk['grade_delta'].clip(-15, 15)
+        gd_norm = (gd - gd.min()) / (gd.max() - gd.min() + 1e-9)
+        gd_risk = 1 - gd_norm
+        at = sim_risk['absenteeism_trend'].clip(0, 1)
+        fs_new = sim_risk['financial_stress_index'] / 5.0
+        es = sim_risk['engagement_score'].clip(0, 4)
+        es_norm = (es - es.min()) / (es.max() - es.min() + 1e-9)
+        es_risk = 1 - es_norm
+        raw = (0.30 * gd_risk + 0.25 * at + 0.25 * fs_new + 0.20 * es_risk)
+        noise = sim_risk['student_id'].apply(
+            lambda sid: (int(hashlib.md5(str(sid).encode()).hexdigest()[:8], 16) % 1000) / 10000 - 0.05
+        )
+        raw = (raw + noise).clip(0, 1)
+        logit = np.log(raw / (1 - raw + 1e-9) + 1e-9)
+        calibrated = 1 / (1 + np.exp(-logit * 1.2))
+        actual = sim_risk['dropout_label']
+        calibrated = calibrated * 0.6 + actual * 0.35 + 0.025
+        after_probs = calibrated.clip(0.01, 0.99).round(3).values
 
-    raw = (0.30 * gd_risk + 0.25 * at + 0.25 * fs_new + 0.20 * es_risk)
-    noise = sim_risk['student_id'].apply(
-        lambda sid: (int(hashlib.md5(str(sid).encode()).hexdigest()[:8], 16) % 1000) / 10000 - 0.05
-    )
-    raw = (raw + noise).clip(0, 1)
-    logit = np.log(raw / (1 - raw + 1e-9) + 1e-9)
-    calibrated = 1 / (1 + np.exp(-logit * 1.2))
-    actual = sim_risk['dropout_label']
-    calibrated = calibrated * 0.6 + actual * 0.35 + 0.025
-    sim['new_risk_score'] = calibrated.clip(0.01, 0.99).round(3)
+    sim['new_risk_score'] = after_probs
+    
+    # 6. RISK BUCKET LOGIC (Consistent for both)
+    def _get_tiers(probs):
+        res = []
+        for p in probs:
+            if p >= 0.70: res.append('High')
+            elif p >= 0.40: res.append('Medium')
+            else: res.append('Low')
+        return np.array(res)
 
-    sim['new_tier'] = sim['new_risk_score'].apply(_assign_tier)
+    before_tiers_arr = _get_tiers(before_probs)
+    after_tiers_arr = _get_tiers(after_probs)
+    sim['new_tier'] = after_tiers_arr
 
-    # Before / after comparison
-    before_tiers = DF['intervention_tier'].value_counts().to_dict()
-    after_tiers = sim['new_tier'].value_counts().to_dict()
+    # 7. DEBUG LOGGING (REQUIRED)
+    print("\n[DEBUG SIMULATOR] --- POLICY TRACE ---")
+    print(f"Policies: Scholarship={scholarship_toggle}, FeesWaived={fee_waiver}, FSIRed={fsi_reduction}")
+    print(f"SAMPLE BEFORE:\n{DF[['student_id', 'debtor', 'tuition_fees_up_to_date', 'scholarship_holder', 'financial_stress_index']].head().to_string()}")
+    print(f"SAMPLE AFTER:\n{sim[['student_id', 'debtor', 'tuition_fees_up_to_date', 'scholarship_holder', 'financial_stress_index']].head().to_string()}")
+    print(f"FSI: {DF['financial_stress_index'].mean():.3f} -> {sim['financial_stress_index'].mean():.3f}")
+    print(f"Mean Prob: {np.mean(before_probs):.4f} -> {np.mean(after_probs):.4f}")
+    
+    before_counts = pd.Series(before_tiers_arr).value_counts().to_dict()
+    after_counts = pd.Series(after_tiers_arr).value_counts().to_dict()
+    print(f"Dist BEFORE: {before_counts}")
+    print(f"Dist AFTER:  {after_counts}")
+    print("---------------------------------------\n")
 
-    moved_from_high = int(((DF['intervention_tier'] == 'high') & (sim['new_tier'] != 'high')).sum())
-    moved_from_medium = int(((DF['intervention_tier'] == 'medium') & (sim['new_tier'] == 'low')).sum())
+    # 8. IMPACT METRICS
+    moved_from_high = int(((before_tiers_arr == 'High') & (after_tiers_arr != 'High')).sum())
+    moved_from_medium = int(((before_tiers_arr == 'Medium') & (after_tiers_arr == 'Low')).sum())
 
     return jsonify({
         'before': {
-            'tiers': {k: int(v) for k, v in before_tiers.items()},
-            'avg_risk': round(float(DF['risk_score'].mean()), 3),
+            'tiers': {k: int(v) for k, v in before_counts.items()},
+            'avg_risk': round(float(np.mean(before_probs)), 3),
         },
         'after': {
-            'tiers': {k: int(after_tiers.get(k, 0)) for k in ['high', 'medium', 'low']},
-            'avg_risk': round(float(sim['new_risk_score'].mean()), 3),
+            'tiers': {k: int(after_counts.get(k, 0)) for k in ['High', 'Medium', 'Low']},
+            'avg_risk': round(float(np.mean(after_probs)), 3),
         },
         'impact': {
             'moved_from_high': moved_from_high,
             'moved_from_medium': moved_from_medium,
-            'risk_reduction': round(float(DF['risk_score'].mean() - sim['new_risk_score'].mean()), 4),
+            'risk_reduction': round(float(np.mean(before_probs) - np.mean(after_probs)), 4),
             'dropouts_potentially_saved': moved_from_high + moved_from_medium,
         }
     })
+
+
 
 
 @app.route('/api/students/<int:student_id>/nudge')

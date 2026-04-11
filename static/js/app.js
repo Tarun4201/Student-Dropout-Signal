@@ -442,8 +442,8 @@ function renderStudentsTable(students) {
     }
 
     tbody.innerHTML = students.map(s => {
-        const tierClass = `risk-badge-${s.intervention_tier}`;
-        const tierLabel = s.intervention_tier.charAt(0).toUpperCase() + s.intervention_tier.slice(1);
+        const tierClass = `risk-badge-${s.intervention_tier.toLowerCase()}`;
+        const tierLabel = s.intervention_tier;
 
         let statusClass = 'status-enrolled';
         if (s.target === 'Dropout') statusClass = 'status-dropout';
@@ -866,8 +866,8 @@ async function loadRedZone() {
         }
 
         tbody.innerHTML = data.students.map(s => {
-            const tierClass = `risk-badge-${s.intervention_tier}`;
-            const tierLabel = s.intervention_tier.charAt(0).toUpperCase() + s.intervention_tier.slice(1);
+            const tierClass = `risk-badge-${s.intervention_tier.toLowerCase()}`;
+            const tierLabel = s.intervention_tier;
             const sentClass = s.sentiment_score < 0.3 ? 'sentiment-low' :
                               s.sentiment_score < 0.5 ? 'sentiment-medium' : 'sentiment-high';
             return `
@@ -1100,15 +1100,15 @@ async function runSimulation() {
                     <div class="sim-tier-col-header">Before</div>
                     <div class="sim-tier-row">
                         <span class="sim-tier-name" style="color:var(--rose-light)">High</span>
-                        <span class="sim-tier-count">${data.before.tiers.high || 0}</span>
+                        <span class="sim-tier-count">${data.before.tiers.High || 0}</span>
                     </div>
                     <div class="sim-tier-row">
                         <span class="sim-tier-name" style="color:var(--amber-light)">Medium</span>
-                        <span class="sim-tier-count">${data.before.tiers.medium || 0}</span>
+                        <span class="sim-tier-count">${data.before.tiers.Medium || 0}</span>
                     </div>
                     <div class="sim-tier-row">
                         <span class="sim-tier-name" style="color:var(--emerald-light)">Low</span>
-                        <span class="sim-tier-count">${data.before.tiers.low || 0}</span>
+                        <span class="sim-tier-count">${data.before.tiers.Low || 0}</span>
                     </div>
                 </div>
                 <div class="sim-arrow-col">
@@ -1120,15 +1120,15 @@ async function runSimulation() {
                     <div class="sim-tier-col-header">After</div>
                     <div class="sim-tier-row">
                         <span class="sim-tier-name" style="color:var(--rose-light)">High</span>
-                        <span class="sim-tier-count">${data.after.tiers.high || 0}</span>
+                        <span class="sim-tier-count">${data.after.tiers.High || 0}</span>
                     </div>
                     <div class="sim-tier-row">
                         <span class="sim-tier-name" style="color:var(--amber-light)">Medium</span>
-                        <span class="sim-tier-count">${data.after.tiers.medium || 0}</span>
+                        <span class="sim-tier-count">${data.after.tiers.Medium || 0}</span>
                     </div>
                     <div class="sim-tier-row">
                         <span class="sim-tier-name" style="color:var(--emerald-light)">Low</span>
-                        <span class="sim-tier-count">${data.after.tiers.low || 0}</span>
+                        <span class="sim-tier-count">${data.after.tiers.Low || 0}</span>
                     </div>
                 </div>
             </div>
