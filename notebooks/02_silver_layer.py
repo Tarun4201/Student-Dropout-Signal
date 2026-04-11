@@ -34,7 +34,25 @@ for i, col in enumerate(df.columns, 1):
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.3 Null Handling
+# MAGIC ## 2.3 Fix Data Type Issues
+# MAGIC
+# MAGIC Cast `curricular_units_2nd_sem_approved` from string to double (contains malformed value 'Dropout' in source data).
+
+# COMMAND ----------
+
+from pyspark.sql import functions as F
+
+df = df.withColumn(
+    "curricular_units_2nd_sem_approved",
+    F.expr("try_cast(curricular_units_2nd_sem_approved as double)")
+)
+
+print("✅ curricular_units_2nd_sem_approved cast to double")
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## 2.4 Null Handling
 # MAGIC
 # MAGIC - Numeric: median imputation
 # MAGIC - String: mode imputation
@@ -42,7 +60,6 @@ for i, col in enumerate(df.columns, 1):
 
 # COMMAND ----------
 
-from pyspark.sql import functions as F
 from pyspark.sql.types import StringType
 
 # Check nulls before
@@ -81,7 +98,7 @@ print(f"✅ Null counts AFTER imputation: {total_nulls_after} (should be 0)")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.4 Binary Target Encoding
+# MAGIC ## 2.5 Binary Target Encoding
 # MAGIC
 # MAGIC `dropout_label`: **1** if `target == "Dropout"`, else **0**.
 
@@ -105,7 +122,7 @@ print(f"  scale_pos_weight for XGBoost: {neg/pos:.2f}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.5 Feature Engineering
+# MAGIC ## 2.6 Feature Engineering
 # MAGIC
 # MAGIC ### Feature 1: `grade_delta`
 # MAGIC `sem2_grade − sem1_grade` — Negative = declining performance
@@ -179,7 +196,7 @@ df.select("engagement_score").describe().show()
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.6 Add Synthetic Student ID
+# MAGIC ## 2.7 Add Synthetic Student ID
 
 # COMMAND ----------
 
@@ -195,7 +212,7 @@ print(f"✅ student_id added (range: 0 to {df.count() - 1})")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.7 Final Validation
+# MAGIC ## 2.8 Final Validation
 
 # COMMAND ----------
 
@@ -223,7 +240,7 @@ print(f"\nSilver table shape: {df.count()} rows × {len(df.columns)} columns")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.8 Write Silver Delta Table
+# MAGIC ## 2.9 Write Silver Delta Table
 
 # COMMAND ----------
 
@@ -237,7 +254,7 @@ print(f"   Columns: {len(verify_df.columns)}")
 # COMMAND ----------
 
 # MAGIC %md
-# MAGIC ## 2.9 Silver Table Preview
+# MAGIC ## 2.10 Silver Table Preview
 
 # COMMAND ----------
 
