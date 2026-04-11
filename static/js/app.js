@@ -36,6 +36,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loadPipeline();
     initTableControls();
     initModal();
+    // Phase 2
+    loadRedZone();
+    initSimulator();
+    loadMitigation();
 });
 
 // ========================================================================
@@ -587,6 +591,24 @@ async function openStudentModal(studentId) {
                     `;
                 }).join('')}
             </div>
+
+            <!-- Phase 2: Action Plan -->
+            <div class="modal-action-plan">
+                <button class="action-plan-toggle" onclick="toggleActionPlan(${s.student_id}, this)">
+                    <i data-lucide="lightbulb"></i>
+                    Show Recommended Action Plan
+                </button>
+                <div class="action-plan-content" id="action-plan-${s.student_id}" style="display:none;"></div>
+            </div>
+
+            <!-- Phase 2: Nudge Message -->
+            <div class="modal-nudge">
+                <button class="nudge-toggle" onclick="toggleNudge(${s.student_id}, this)">
+                    <i data-lucide="mail"></i>
+                    Generate Outreach Message
+                </button>
+                <div class="nudge-content" id="nudge-${s.student_id}" style="display:none;"></div>
+            </div>
         `;
 
         lucide.createIcons();
@@ -820,4 +842,457 @@ function renderPipeline(layers) {
 
     container.innerHTML = html;
     lucide.createIcons();
+}
+
+// ========================================================================
+// PHASE 2: RED ZONE
+// ========================================================================
+async function loadRedZone() {
+    try {
+        const res = await fetch('/api/red-zone?per_page=15');
+        const data = await res.json();
+
+        // Stats
+        animateCounter(document.getElementById('rz-total'), data.total_red_zone);
+        document.getElementById('rz-rate').textContent = `${data.red_zone_rate}%`;
+        document.getElementById('rz-avg-risk').textContent = data.avg_risk_score.toFixed(3);
+        document.getElementById('rz-avg-sentiment').textContent = data.avg_sentiment.toFixed(3);
+
+        // Table
+        const tbody = document.getElementById('rz-tbody');
+        if (!data.students || data.students.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="table-loading">No students in the Red Zone.</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = data.students.map(s => {
+            const tierClass = `risk-badge-${s.intervention_tier}`;
+            const tierLabel = s.intervention_tier.charAt(0).toUpperCase() + s.intervention_tier.slice(1);
+            const sentClass = s.sentiment_score < 0.3 ? 'sentiment-low' :
+                              s.sentiment_score < 0.5 ? 'sentiment-medium' : 'sentiment-high';
+            return `
+                <tr>
+                    <td><span style="font-family:var(--font-mono);font-weight:600;">#${s.student_id}</span></td>
+                    <td><span class="risk-badge ${tierClass}">${s.risk_score.toFixed(3)}</span></td>
+                    <td><span class="risk-badge ${tierClass}">${tierLabel}</span></td>
+                    <td>
+                        <span class="sentiment-indicator ${sentClass}">
+                            <span class="sentiment-dot"></span>
+                            ${s.sentiment_score.toFixed(3)}
+                        </span>
+                    </td>
+                    <td><span style="font-family:var(--font-mono);">${s.financial_stress_index.toFixed(0)}/5</span></td>
+                    <td>${s.gender_label || '—'}</td>
+                    <td><span class="reason-cell" title="${escapeHtml(s.reason_text || '')}">${s.reason_text || '—'}</span></td>
+                    <td><button class="btn-detail" onclick="openStudentModal(${s.student_id})">View</button></td>
+                </tr>
+            `;
+        }).join('');
+
+        lucide.createIcons();
+    } catch (err) {
+        console.error('Failed to load Red Zone:', err);
+    }
+}
+
+// ========================================================================
+// PHASE 2: ACTION PLAN
+// ========================================================================
+async function toggleActionPlan(studentId, btn) {
+    const container = document.getElementById(`action-plan-${studentId}`);
+    if (!container) return;
+
+    if (container.style.display !== 'none') {
+        container.style.display = 'none';
+        btn.innerHTML = '<i data-lucide="lightbulb"></i> Show Recommended Action Plan';
+        lucide.createIcons();
+        return;
+    }
+
+    btn.innerHTML = '<i data-lucide="loader"></i> Loading...';
+    lucide.createIcons();
+
+    try {
+        const res = await fetch(`/api/students/${studentId}/action-plan`);
+        const data = await res.json();
+
+        container.innerHTML = data.actions.map((a, i) => `
+            <div class="action-card">
+                <div class="action-rank action-rank-${i + 1}">#${i + 1}</div>
+                <div class="action-body">
+                    <div class="action-name">${a.name}</div>
+                    <span class="action-type">${a.type}</span>
+                    <div class="action-desc">${a.description}</div>
+                    <div class="action-rationale">${a.rationale}</div>
+                </div>
+                <div class="action-impact">
+                    <span class="action-impact-value">${(a.impact_score * 100).toFixed(0)}%</span>
+                    <span class="action-impact-label">Impact</span>
+                </div>
+            </div>
+        `).join('');
+
+        container.style.display = 'flex';
+        btn.innerHTML = '<i data-lucide="lightbulb"></i> Hide Action Plan';
+        lucide.createIcons();
+    } catch (err) {
+        container.innerHTML = '<p style="color:var(--rose-light);font-size:0.8rem;">Failed to load action plan.</p>';
+        container.style.display = 'flex';
+        console.error(err);
+    }
+}
+
+// ========================================================================
+// PHASE 2: NUDGE MESSAGE
+// ========================================================================
+async function toggleNudge(studentId, btn) {
+    const container = document.getElementById(`nudge-${studentId}`);
+    if (!container) return;
+
+    if (container.style.display !== 'none') {
+        container.style.display = 'none';
+        btn.innerHTML = '<i data-lucide="mail"></i> Generate Outreach Message';
+        lucide.createIcons();
+        return;
+    }
+
+    btn.innerHTML = '<i data-lucide="loader"></i> Generating...';
+    lucide.createIcons();
+
+    try {
+        const res = await fetch(`/api/students/${studentId}/nudge`);
+        const data = await res.json();
+
+        const currentStatus = data.status || 'pending';
+
+        container.innerHTML = `
+            <div class="nudge-message-box">${escapeHtml(data.message)}</div>
+            <div class="nudge-actions">
+                <button class="nudge-btn nudge-btn-copy" onclick="copyNudge(this)">
+                    <i data-lucide="copy"></i> Copy to Clipboard
+                </button>
+                <div class="nudge-status-group">
+                    <button class="nudge-status-btn ${currentStatus==='pending'?'active-pending':''}" onclick="updateNudgeStatus(${studentId},'pending',this)">Pending</button>
+                    <button class="nudge-status-btn ${currentStatus==='sent'?'active-sent':''}" onclick="updateNudgeStatus(${studentId},'sent',this)">Sent</button>
+                    <button class="nudge-status-btn ${currentStatus==='resolved'?'active-resolved':''}" onclick="updateNudgeStatus(${studentId},'resolved',this)">Resolved</button>
+                </div>
+            </div>
+        `;
+
+        container.style.display = 'block';
+        btn.innerHTML = '<i data-lucide="mail"></i> Hide Outreach Message';
+        lucide.createIcons();
+    } catch (err) {
+        container.innerHTML = '<p style="color:var(--rose-light);font-size:0.8rem;">Failed to generate message.</p>';
+        container.style.display = 'block';
+        console.error(err);
+    }
+}
+
+function copyNudge(btn) {
+    const messageBox = btn.closest('.nudge-content').querySelector('.nudge-message-box');
+    if (!messageBox) return;
+    navigator.clipboard.writeText(messageBox.textContent).then(() => {
+        btn.classList.add('copied');
+        btn.innerHTML = '<i data-lucide="check"></i> Copied!';
+        lucide.createIcons();
+        setTimeout(() => {
+            btn.classList.remove('copied');
+            btn.innerHTML = '<i data-lucide="copy"></i> Copy to Clipboard';
+            lucide.createIcons();
+        }, 2000);
+    });
+}
+
+async function updateNudgeStatus(studentId, status, btn) {
+    try {
+        await fetch(`/api/students/${studentId}/status`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ status }),
+        });
+
+        // Update button states
+        const group = btn.closest('.nudge-status-group');
+        group.querySelectorAll('.nudge-status-btn').forEach(b => {
+            b.className = 'nudge-status-btn';
+        });
+        btn.classList.add(`active-${status}`);
+    } catch (err) {
+        console.error('Failed to update status:', err);
+    }
+}
+
+// ========================================================================
+// PHASE 2: POLICY SIMULATOR
+// ========================================================================
+function initSimulator() {
+    // FSI slider label
+    const fsiSlider = document.getElementById('sim-fsi');
+    const fsiLabel = document.getElementById('fsi-value');
+    if (fsiSlider && fsiLabel) {
+        fsiSlider.addEventListener('input', () => {
+            fsiLabel.textContent = fsiSlider.value;
+        });
+    }
+
+    // Run button
+    const runBtn = document.getElementById('sim-run-btn');
+    if (runBtn) {
+        runBtn.addEventListener('click', runSimulation);
+    }
+}
+
+async function runSimulation() {
+    const btn = document.getElementById('sim-run-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i data-lucide="loader"></i> Simulating...';
+    lucide.createIcons();
+
+    const params = {
+        grant_scholarship: document.getElementById('sim-scholarship').checked,
+        waive_fees: document.getElementById('sim-fees').checked,
+        fsi_reduction: parseFloat(document.getElementById('sim-fsi').value) || 0,
+    };
+
+    try {
+        const res = await fetch('/api/simulate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(params),
+        });
+        const data = await res.json();
+
+        // Update badge
+        const badge = document.getElementById('sim-status-badge');
+        badge.textContent = 'Simulation complete';
+        badge.classList.add('active');
+
+        // Render results
+        const body = document.getElementById('sim-results-body');
+        const riskDelta = data.impact.risk_reduction;
+        const riskColor = riskDelta > 0 ? 'var(--emerald-light)' : 'var(--text-muted)';
+
+        body.innerHTML = `
+            <div class="sim-impact-grid">
+                <div class="sim-impact-card">
+                    <span class="sim-impact-value" style="color:${riskColor}">
+                        ${riskDelta > 0 ? '-' : ''}${(Math.abs(riskDelta) * 100).toFixed(2)}%
+                    </span>
+                    <span class="sim-impact-label">Avg Risk Reduction</span>
+                </div>
+                <div class="sim-impact-card">
+                    <span class="sim-impact-value" style="color:var(--emerald-light)">
+                        ${data.impact.moved_from_high}
+                    </span>
+                    <span class="sim-impact-label">Moved from High Risk</span>
+                </div>
+                <div class="sim-impact-card">
+                    <span class="sim-impact-value" style="color:var(--cyan)">
+                        ${data.impact.dropouts_potentially_saved}
+                    </span>
+                    <span class="sim-impact-label">Potential Dropouts Saved</span>
+                </div>
+            </div>
+
+            <div class="sim-tier-comparison">
+                <div class="sim-tier-col">
+                    <div class="sim-tier-col-header">Before</div>
+                    <div class="sim-tier-row">
+                        <span class="sim-tier-name" style="color:var(--rose-light)">High</span>
+                        <span class="sim-tier-count">${data.before.tiers.high || 0}</span>
+                    </div>
+                    <div class="sim-tier-row">
+                        <span class="sim-tier-name" style="color:var(--amber-light)">Medium</span>
+                        <span class="sim-tier-count">${data.before.tiers.medium || 0}</span>
+                    </div>
+                    <div class="sim-tier-row">
+                        <span class="sim-tier-name" style="color:var(--emerald-light)">Low</span>
+                        <span class="sim-tier-count">${data.before.tiers.low || 0}</span>
+                    </div>
+                </div>
+                <div class="sim-arrow-col">
+                    <i data-lucide="arrow-right"></i>
+                    <i data-lucide="arrow-right"></i>
+                    <i data-lucide="arrow-right"></i>
+                </div>
+                <div class="sim-tier-col">
+                    <div class="sim-tier-col-header">After</div>
+                    <div class="sim-tier-row">
+                        <span class="sim-tier-name" style="color:var(--rose-light)">High</span>
+                        <span class="sim-tier-count">${data.after.tiers.high || 0}</span>
+                    </div>
+                    <div class="sim-tier-row">
+                        <span class="sim-tier-name" style="color:var(--amber-light)">Medium</span>
+                        <span class="sim-tier-count">${data.after.tiers.medium || 0}</span>
+                    </div>
+                    <div class="sim-tier-row">
+                        <span class="sim-tier-name" style="color:var(--emerald-light)">Low</span>
+                        <span class="sim-tier-count">${data.after.tiers.low || 0}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        lucide.createIcons();
+    } catch (err) {
+        console.error('Simulation failed:', err);
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i data-lucide="play"></i> Run Simulation';
+        lucide.createIcons();
+    }
+}
+
+// ========================================================================
+// PHASE 2: BIAS MITIGATION
+// ========================================================================
+async function loadMitigation() {
+    try {
+        const res = await fetch('/api/fairness/mitigation');
+        const data = await res.json();
+        renderMitigationCards(data);
+        renderMitigationChart(data);
+    } catch (err) {
+        console.error('Failed to load mitigation:', err);
+    }
+}
+
+function renderMitigationCards(data) {
+    const grid = document.getElementById('mitigation-grid');
+
+    let html = data.before.map((b, i) => {
+        const a = data.after[i];
+        const dpBefore = (b.dp_diff > 0.10) ? 'fm-num-bad' : (b.dp_diff > 0.05) ? 'fm-num-warn' : 'fm-num-ok';
+        const eoBefore = (b.eo_diff > 0.10) ? 'fm-num-bad' : (b.eo_diff > 0.05) ? 'fm-num-warn' : 'fm-num-ok';
+        const dpAfter = (a.dp_diff > 0.10) ? 'fm-num-bad' : (a.dp_diff > 0.05) ? 'fm-num-warn' : 'fm-num-ok';
+        const eoAfter = (a.eo_diff > 0.10) ? 'fm-num-bad' : (a.eo_diff > 0.05) ? 'fm-num-warn' : 'fm-num-ok';
+
+        return `
+            <div class="mitigation-card">
+                <div class="mitigation-card-header">${formatGroup(b.group)}</div>
+                <div class="mitigation-metric-pair">
+                    <div class="mitigation-metric">
+                        <span class="mitigation-value ${dpBefore}">${b.dp_diff.toFixed(3)}</span>
+                        <span class="mitigation-label">DP Diff</span>
+                    </div>
+                    <div class="mitigation-metric">
+                        <span class="mitigation-value ${eoBefore}">${b.eo_diff.toFixed(3)}</span>
+                        <span class="mitigation-label">EO Diff</span>
+                    </div>
+                </div>
+                <div class="mitigation-arrow">
+                    <i data-lucide="arrow-down"></i>
+                    After Constraint
+                </div>
+                <div class="mitigation-after">
+                    <div class="mitigation-metric-pair">
+                        <div class="mitigation-metric">
+                            <span class="mitigation-value ${dpAfter}">${a.dp_diff.toFixed(3)}</span>
+                            <span class="mitigation-label">DP Diff</span>
+                        </div>
+                        <div class="mitigation-metric">
+                            <span class="mitigation-value ${eoAfter}">${a.eo_diff.toFixed(3)}</span>
+                            <span class="mitigation-label">EO Diff</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    html += `
+        <div class="mitigation-auc-note" style="grid-column: 1 / -1;">
+            AUC Impact: <strong>${data.accuracy_impact.before_auc}</strong> → <strong>${data.accuracy_impact.after_auc}</strong>
+            (−${(data.accuracy_impact.auc_cost * 100).toFixed(1)}%) · ${data.accuracy_impact.note}
+        </div>
+    `;
+
+    grid.innerHTML = html;
+    lucide.createIcons();
+}
+
+function renderMitigationChart(data) {
+    const ctx = document.getElementById('mitigationChart').getContext('2d');
+    const labels = data.before.map(b => formatGroup(b.group));
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: labels,
+            datasets: [
+                {
+                    label: 'EO Diff (Before)',
+                    data: data.before.map(b => b.eo_diff),
+                    backgroundColor: 'rgba(244, 63, 94, 0.6)',
+                    borderColor: 'rgba(244, 63, 94, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                },
+                {
+                    label: 'EO Diff (After)',
+                    data: data.after.map(a => a.eo_diff),
+                    backgroundColor: 'rgba(16, 185, 129, 0.6)',
+                    borderColor: 'rgba(16, 185, 129, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                },
+                {
+                    label: 'DP Diff (Before)',
+                    data: data.before.map(b => b.dp_diff),
+                    backgroundColor: 'rgba(245, 158, 11, 0.5)',
+                    borderColor: 'rgba(245, 158, 11, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                },
+                {
+                    label: 'DP Diff (After)',
+                    data: data.after.map(a => a.dp_diff),
+                    backgroundColor: 'rgba(6, 182, 212, 0.5)',
+                    borderColor: 'rgba(6, 182, 212, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4,
+                },
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        padding: 16,
+                        font: { size: 11, weight: '500' },
+                        usePointStyle: true,
+                    }
+                },
+                tooltip: {
+                    backgroundColor: 'rgba(15, 17, 23, 0.95)',
+                    borderColor: 'rgba(255,255,255,0.1)',
+                    borderWidth: 1,
+                    cornerRadius: 8,
+                    callbacks: {
+                        label: (item) => `${item.dataset.label}: ${item.raw.toFixed(4)}`
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { font: { size: 11, weight: '500' } }
+                },
+                y: {
+                    grid: { color: 'rgba(255,255,255,0.03)' },
+                    ticks: { font: { size: 10 } },
+                    title: {
+                        display: true,
+                        text: 'Disparity Score',
+                        font: { size: 11, weight: '500' },
+                        color: '#5c5f72'
+                    }
+                }
+            }
+        }
+    });
 }

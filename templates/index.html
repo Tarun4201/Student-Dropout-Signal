@@ -43,7 +43,9 @@
                 <a href="#hero" class="nav-link active" data-section="hero">Home</a>
                 <a href="#dashboard" class="nav-link" data-section="dashboard">Dashboard</a>
                 <a href="#students" class="nav-link" data-section="students">Students</a>
+                <a href="#redzone" class="nav-link" data-section="redzone">Red Zone</a>
                 <a href="#fairness" class="nav-link" data-section="fairness">Fairness</a>
+                <a href="#simulator" class="nav-link" data-section="simulator">Simulator</a>
                 <a href="#pipeline" class="nav-link" data-section="pipeline">Pipeline</a>
             </div>
             <div class="nav-actions">
@@ -349,6 +351,81 @@
         </div>
     </section>
 
+    <!-- ===== RED ZONE SECTION (Phase 2) ===== -->
+    <section id="redzone" class="section">
+        <div class="section-container">
+            <div class="section-header">
+                <div class="section-badge section-badge-redzone">
+                    <i data-lucide="alert-octagon"></i>
+                    <span>Red Zone</span>
+                </div>
+                <h2 class="section-title">Critical Intervention Required</h2>
+                <p class="section-subtitle">Students in the Red Zone face both <strong>high financial stress</strong> and <strong>low sentiment</strong> — the most vulnerable intersection requiring immediate support</p>
+            </div>
+
+            <!-- Red Zone Callout -->
+            <div class="callout callout-redzone">
+                <div class="callout-icon">🔴</div>
+                <div class="callout-text">
+                    <strong>Multi-Modal Sentinel</strong> — Traditional models track grades and attendance. The Red Zone combines financial stress indicators with a sentiment analysis score to catch students who are struggling on <em>both</em> dimensions — financial hardship AND emotional disengagement. These students are at the highest risk of falling through the cracks.
+                </div>
+            </div>
+
+            <!-- Red Zone Stats -->
+            <div class="rz-stats-grid" id="rz-stats-grid">
+                <div class="rz-stat-card rz-stat-critical">
+                    <div class="rz-stat-icon"><i data-lucide="alert-octagon"></i></div>
+                    <div class="rz-stat-body">
+                        <span class="rz-stat-value" id="rz-total">—</span>
+                        <span class="rz-stat-label">Red Zone Students</span>
+                    </div>
+                </div>
+                <div class="rz-stat-card">
+                    <div class="rz-stat-icon rz-icon-amber"><i data-lucide="percent"></i></div>
+                    <div class="rz-stat-body">
+                        <span class="rz-stat-value" id="rz-rate">—%</span>
+                        <span class="rz-stat-label">of Total Population</span>
+                    </div>
+                </div>
+                <div class="rz-stat-card">
+                    <div class="rz-stat-icon rz-icon-rose"><i data-lucide="trending-up"></i></div>
+                    <div class="rz-stat-body">
+                        <span class="rz-stat-value" id="rz-avg-risk">—</span>
+                        <span class="rz-stat-label">Avg Risk Score</span>
+                    </div>
+                </div>
+                <div class="rz-stat-card">
+                    <div class="rz-stat-icon rz-icon-violet"><i data-lucide="heart-pulse"></i></div>
+                    <div class="rz-stat-body">
+                        <span class="rz-stat-value" id="rz-avg-sentiment">—</span>
+                        <span class="rz-stat-label">Avg Sentiment</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Red Zone Table -->
+            <div class="table-wrapper rz-table-wrapper">
+                <table class="data-table" id="rz-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Risk Score</th>
+                            <th>Tier</th>
+                            <th>Sentiment</th>
+                            <th>Fin. Stress</th>
+                            <th>Gender</th>
+                            <th>Reason</th>
+                            <th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="rz-tbody">
+                        <tr><td colspan="8" class="table-loading">Loading Red Zone data...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
     <!-- ===== FAIRNESS SECTION ===== -->
     <section id="fairness" class="section">
         <div class="section-container">
@@ -422,6 +499,45 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Phase 2: Bias Mitigation Subsection -->
+            <div class="mitigation-section" id="mitigation-section">
+                <div class="section-header" style="margin-top:3rem;">
+                    <div class="section-badge section-badge-violet">
+                        <i data-lucide="shield-plus"></i>
+                        <span>Bias Mitigation</span>
+                    </div>
+                    <h2 class="section-title" style="font-size:1.75rem;">In-Processing Fairness Constraints</h2>
+                    <p class="section-subtitle">Simulated impact of applying Fairlearn's ExponentiatedGradient with EqualizedOdds constraint during model training</p>
+                </div>
+
+                <div class="callout callout-star" style="margin-bottom:1.5rem;">
+                    <div class="callout-icon">⚖️</div>
+                    <div class="callout-text">
+                        <strong>From Detection to Prevention</strong> — The audit above <em>detects</em> bias. In-processing mitigation <em>prevents</em> it by embedding fairness constraints directly into the learning objective. The model will not merely report bias against <code>female_high_stress</code> students — it will mathematically enforce equity during training.
+                    </div>
+                </div>
+
+                <div class="mitigation-grid" id="mitigation-grid">
+                    <!-- Populated by JS -->
+                    <div class="loading-shimmer" style="height:200px;"></div>
+                </div>
+
+                <div class="charts-grid" style="margin-top:1.5rem;">
+                    <div class="chart-card chart-card-wide" id="chart-mitigation">
+                        <div class="chart-header">
+                            <h3 class="chart-title">
+                                <i data-lucide="git-compare"></i>
+                                Before vs After Mitigation
+                            </h3>
+                            <span class="chart-badge">EqualizedOdds Constraint</span>
+                        </div>
+                        <div class="chart-body chart-body-tall">
+                            <canvas id="mitigationChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </section>
 
@@ -463,6 +579,85 @@
                     </div>
                     <h3 class="diff-title">reason_text ★</h3>
                     <p class="diff-desc">Plain-English sentences for advisors built from each student's top-3 contributing factors. No ML knowledge required to act.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== POLICY SIMULATOR SECTION (Phase 2) ===== -->
+    <section id="simulator" class="section">
+        <div class="section-container">
+            <div class="section-header">
+                <div class="section-badge section-badge-cyan">
+                    <i data-lucide="sliders-horizontal"></i>
+                    <span>Policy Simulator</span>
+                </div>
+                <h2 class="section-title">What-If Scenario Planner</h2>
+                <p class="section-subtitle">Adjust policy levers and observe real-time impact on student risk distribution — transform data into strategic decisions</p>
+            </div>
+
+            <div class="callout callout-star" style="margin-bottom:2rem;">
+                <div class="callout-icon">🧪</div>
+                <div class="callout-text">
+                    <strong>Strategic Planning Tool</strong> — Administrators can now answer: "If we provide emergency scholarships to all students in the High Financial Stress tier, how many dropouts would we prevent?" Toggle the policy controls below and watch risk tiers shift in real time.
+                </div>
+            </div>
+
+            <div class="simulator-layout">
+                <!-- Controls Panel -->
+                <div class="sim-controls-card">
+                    <div class="sim-controls-header">
+                        <i data-lucide="settings-2"></i>
+                        <h3>Policy Controls</h3>
+                    </div>
+                    <div class="sim-controls-body">
+                        <div class="sim-control-group">
+                            <div class="sim-control-label">
+                                <span>Grant Universal Scholarship</span>
+                                <span class="sim-control-hint">Award scholarship to all non-holders</span>
+                            </div>
+                            <label class="sim-toggle" id="sim-toggle-scholarship">
+                                <input type="checkbox" id="sim-scholarship">
+                                <span class="sim-toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="sim-control-group">
+                            <div class="sim-control-label">
+                                <span>Waive Outstanding Fees</span>
+                                <span class="sim-control-hint">Clear all debt and mark fees current</span>
+                            </div>
+                            <label class="sim-toggle" id="sim-toggle-fees">
+                                <input type="checkbox" id="sim-fees">
+                                <span class="sim-toggle-slider"></span>
+                            </label>
+                        </div>
+                        <div class="sim-control-group">
+                            <div class="sim-control-label">
+                                <span>Reduce Financial Stress Index</span>
+                                <span class="sim-control-hint">Reduce FSI by <strong id="fsi-value">0</strong> points</span>
+                            </div>
+                            <input type="range" id="sim-fsi" min="0" max="3" step="0.5" value="0" class="sim-slider">
+                        </div>
+                        <button class="btn btn-primary sim-run-btn" id="sim-run-btn">
+                            <i data-lucide="play"></i>
+                            Run Simulation
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Results Panel -->
+                <div class="sim-results-card" id="sim-results-card">
+                    <div class="sim-results-header">
+                        <i data-lucide="bar-chart-3"></i>
+                        <h3>Simulation Results</h3>
+                        <span class="sim-results-badge" id="sim-status-badge">Awaiting input</span>
+                    </div>
+                    <div class="sim-results-body" id="sim-results-body">
+                        <div class="sim-placeholder">
+                            <i data-lucide="flask-conical"></i>
+                            <p>Toggle policy controls and click <strong>Run Simulation</strong> to see the projected impact on student risk.</p>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
