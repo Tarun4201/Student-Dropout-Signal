@@ -32,7 +32,9 @@ def load_and_process_data():
     try:
         from dotenv import load_dotenv
         import databricks.sql
-        load_dotenv()
+        
+        dotenv_path = os.path.join(os.path.dirname(__file__), '.env')
+        load_dotenv(dotenv_path, override=True)
         
         token = os.getenv("DATABRICKS_TOKEN")
         if not token or token.startswith('dapi...'):
@@ -46,16 +48,23 @@ def load_and_process_data():
             access_token=token
         )
         
+        cursor = conn.cursor()
+        
         print("📥 Querying Silver layer...")
-        df = pd.read_sql("SELECT * FROM silver.uci_dropout_clean", conn)
+        cursor.execute("SELECT * FROM silver.uci_dropout_clean")
+        cols = [desc[0] for desc in cursor.description]
+        df = pd.DataFrame.from_records(cursor.fetchall(), columns=cols)
         
         print("📥 Querying Gold layer...")
         try:
-            gold = pd.read_sql("SELECT * FROM gold.at_risk_students", conn)
+            cursor.execute("SELECT * FROM gold.at_risk_students")
+            cols = [desc[0] for desc in cursor.description]
+            gold = pd.DataFrame.from_records(cursor.fetchall(), columns=cols)
         except Exception as e:
             print(f"[WARN] Could not find gold table: {e}")
             gold = pd.DataFrame()
             
+        cursor.close()
         conn.close()
         
         # The API endpoints expect specific column mappings:
