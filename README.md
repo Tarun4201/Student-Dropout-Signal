@@ -2,7 +2,7 @@
 
 Welcome to **The Dropout Signal**! This is a fair early-warning machine learning system built to predict student dropout risk. It gives academic advisors clear, actionable insights to help struggling students.
 
-🌍 **Live Demo:** [View the Project Website](https://47fc5a2984d6ed08-103-215-237-11.serveousercontent.com) *(Note: As this is a free tunnel, you might see a brief Serveo warning page before the site loads. Please click to continue).*
+🌍 **Live Demo:** [View the Project Website](https://d41fc06c68437706-103-215-237-11.serveousercontent.com) *(Note: As this is a free tunnel, you might see a brief Serveo warning page before the site loads. Please click to continue).*
 
 ---
 
