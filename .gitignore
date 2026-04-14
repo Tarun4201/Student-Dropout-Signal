@@ -1,2 +1,6 @@
 # Ignore environment variables file
 .env
+.env.bak
+.DS_Store
+scratch/
+__pycache__/

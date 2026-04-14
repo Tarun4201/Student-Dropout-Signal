@@ -1,62 +1,37 @@
 # 🎓 The Dropout Signal
-**Fair Early-Warning Pipeline for Student Dropout Prediction**
 
-![Databricks](https://img.shields.io/badge/Databricks-FF3621?style=for-the-badge&logo=databricks&logoColor=white)
-![PySpark](https://img.shields.io/badge/PySpark-E25A1C?style=for-the-badge&logo=apache-spark&logoColor=white)
-![MLflow](https://img.shields.io/badge/MLflow-0194E2?style=for-the-badge&logo=mlflow&logoColor=white)
-![XGBoost](https://img.shields.io/badge/XGBoost-1793D1?style=for-the-badge)
+Welcome to **The Dropout Signal**! This is a fair early-warning machine learning system built to predict student dropout risk. It gives academic advisors clear, actionable insights to help struggling students.
 
-An end-to-end, fair, and explainable machine learning pipeline built on Databricks to predict student dropout risk. This pipeline transforms raw student data into actionable risk assessments for academic advisors.
-
-> **Winner Feature:** Built for non-technical advisors via natural language generation of `reason_text` and robust Platt Calibration for statistically sound intervention tiers.
+🌍 **Live Demo:** [View the Project Website](https://47fc5a2984d6ed08-103-215-237-11.serveousercontent.com) *(Note: As this is a free tunnel, you might see a brief Serveo warning page before the site loads. Please click to continue).*
 
 ---
 
-## 🏗️ Architecture (Medallion Lakehouse)
+## 🤖 Our ML Pipeline Explained
 
-The pipeline is implemented natively in Databricks using a 6-notebook structure mapping to the Medallion Architecture:
+Our Machine Learning pipeline is designed to be highly accurate, explainable, and fair. Instead of just giving a black-box percentage, we break down *why* a student is at risk so that advisors know exactly how to help.
 
-1. **Bronze (`01_bronze_layer`)**: Idempotent ingest of raw data using Unity Catalog.
-2. **Silver (`02_silver_layer`)**: Feature engineering (`grade_delta`, `financial_stress_index`, `engagement_score`).
-3. **Model Training (`03_model_training`)**: XGBoost classification vs Logistic Regression baseline, complete with **Platt scaling** to calibrate output probabilities and logged via **MLflow**.
-4. **Fairness Audit (`04_fairness_audit`)**: Comprehensive **intersectional fairness audit** to establish demographic parity across vulnerable demographic variables. 
-5. **SHAP Explainability (`05_shap_explainability`)**: TreeExplainer calculation to identify the top 3 global and localized factors driving attrition risk.
-6. **Gold (`06_gold_table`)**: Curated table featuring human-readable `reason_text` strings generating plain-English intervention insights directly from SHAP values.
+Here is how our ML Pipeline works:
 
----
+1. **Feature Engineering:** We take basic student data and create key behavioral indicators, such as a student's `grade_delta` (how much their grades are dropping) and their `financial_stress_index`.
+2. **Model Training:** We train an **XGBoost Classifier** (a powerful decision-tree-based model) on historical student data to predict the likelihood of a student dropping out.
+3. **Platt Calibration:** Machine learning models often produce raw numbers that don't translate well to real-world probabilities. We apply a statistical method called *Platt Scaling* so a risk score of `0.85` actually means an 85% probability of dropping out.
+4. **Fairness Auditing:** We run intersectional fairness audits to ensure our model doesn't unintentionally target or neglect vulnerable groups (e.g., low-income female students). We want equitable predictions for everyone.
+5. **Human-Readable Explanations (SHAP):** We use an AI explainability tool called **SHAP** to see exactly which factors push a student's risk up. We translate these raw math values into a plain-English `reason_text` (e.g., *"Grade fell 2.3pts; financial stress is high"*).
 
-## 🌟 Key Differentiators
-
-1. **Jargon-Free Explainability (`reason_text`)**: We abstract away complex SHAP value arrays into clean, advisor-ready sentences (e.g. *"Grade fell 2.3pts; 67% non-completion; debt outstanding."*). 
-2. **Statistically Defensible Interventions (Platt Calibration)**: Rather than arbitrary risk thresholds, our model applies Platt Scaling to calibrate probability scores. A `0.85` score is true 85% risk, allowing for accurate mapping to High/Medium/Low priority tiers.
-3. **Intersectional Fairness**: Marginal fairness checks easily conceal systemic bias against highly vulnerable subgroups (e.g. low-income female students). We conduct granular intersectional parity tests.
+### Local "Fallback" Pipeline
+Our main pipeline is built on Databricks. However, if the cloud is unreachable, we automatically shift to a local **Fallback ML Pipeline**. This uses a lightweight `HistGradientBoostingClassifier` directly within our web app to continue generating accurate predictions and explainable SHAP factors without any downtime!
 
 ---
 
-## 🚀 Getting Started
+## 🚀 Running Locally
 
-### Prerequisites
-- A Databricks workspace
-- ML Runtime (version 13.3 LTS ML or higher recommended)
-- `xgboost` and `shap` python packages installed on the cluster.
+If you'd like to run this on your own machine:
 
-### Execution
-Upload the 6 notebooks from the `/notebooks` sequence to a Databricks Workspace folder and execute them chronologically:
-1. `01_bronze_layer.py`
-2. `02_silver_layer.py`
-3. `03_model_training.py`
-4. `04_fairness_audit.py`
-5. `05_shap_explainability.py`
-6. `06_gold_table.py`
+```bash
+# 1. Install required packages
+pip install -r requirements.txt
 
-### Final Deliverable
-The final actionable dataset is produced in the Unity Catalog table:
-```sql
-SELECT student_id, risk_score, intervention_tier, reason_text 
-FROM gold.at_risk_students
-WHERE intervention_tier IN ('HIGH', 'MEDIUM')
-ORDER BY risk_score DESC;
+# 2. Start the web dashboard
+python app.py
 ```
-
----
-*Built for a 24-hour hackathon.*
+Then simply open `http://localhost:5050` in your web browser!

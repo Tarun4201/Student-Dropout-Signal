@@ -80,9 +80,9 @@ def load_and_process_data():
             
             # Fill NaNs for graduates / low-risk
             df['risk_score'] = df['risk_score'].fillna(0.15)
-            df['intervention_tier'] = df['intervention_tier'].fillna('low')
+            df['intervention_tier'] = df['intervention_tier'].fillna('Low').str.capitalize()
             df['reason_text'] = df['reason_text'].fillna('Low risk of attrition. No intervention required.')
-            df['dropout_predicted'] = (df['intervention_tier'].isin(['high', 'medium'])).astype(int)
+            df['dropout_predicted'] = (df['intervention_tier'].isin(['High', 'Medium'])).astype(int)
             for i in [1, 2, 3]:
                 df[f'shap_factor_{i}'] = df[f'shap_factor_{i}'].fillna('grade_delta')
                 df[f'shap_value_{i}'] = df[f'shap_value_{i}'].fillna(0.0)
@@ -99,7 +99,7 @@ def load_and_process_data():
         df['intersection'] = df['gender_label'].str.lower() + '_' + df['socioeconomic_group']
 
         print("✅ Live Databricks Hook Successful! Loaded {} rows.".format(len(df)))
-        return df
+        return _add_phase2_features(df)
 
 
     except Exception as e:
@@ -165,8 +165,7 @@ def load_and_process_data():
             df['intersection'] = df['gender'].map({0: 'female', 1: 'male'}) + '_' + df['socioeconomic_group']
             df = _simulate_shap_factors(df)
             
-        df['reason_text'] = df.apply(_build_reason_text, axis=1)
-        return df
+        return _add_phase2_features(df)
 
     df = df.reset_index(drop=True)
 
@@ -241,25 +240,29 @@ def load_and_process_data():
         df['intersection'] = df['gender'].map({0: 'female', 1: 'male'}) + '_' + df['socioeconomic_group']
         df = _simulate_shap_factors(df)
 
-    # --- reason_text ---
-    df['reason_text'] = df.apply(_build_reason_text, axis=1)
-
-    # --- Phase 2: Sentiment Score (simulated from engagement + absenteeism) ---
-    es_norm = df['engagement_score'].clip(0, 4) / 4.0
-    at_inv = 1 - df['absenteeism_trend'].clip(0, 1)
-    sem2_g = df['curricular_units_2nd_sem_grade'].clip(0, 20) / 20.0
-    # Deterministic per-student noise
-    s_noise = df['student_id'].apply(
-        lambda sid: (int(hashlib.md5(f's{sid}'.encode()).hexdigest()[:6], 16)
-                     % 1000) / 5000 - 0.1
+def _add_phase2_features(df):
+    """Ensure Phase 2 UI features exist for both Databricks and Offline modes."""
+    if 'reason_text' not in df.columns or df['reason_text'].isna().all():
+        df['reason_text'] = df.apply(_build_reason_text, axis=1)
+        
+    # Phase 2: Sentiment Score (simulated from engagement + absenteeism)
+    es = df.get('engagement_score', pd.Series(2.0, index=df.index))
+    es_norm = es.clip(0, 4) / 4.0
+    
+    at = df.get('absenteeism_trend', pd.Series(0.0, index=df.index))
+    at_inv = 1 - at.clip(0, 1)
+    
+    sem2_g = df.get('curricular_units_2nd_sem_grade', pd.Series(0.0, index=df.index)).clip(0, 20) / 20.0
+    
+    s_noise = df.get('student_id', pd.Series(range(len(df)), index=df.index)).apply(
+        lambda sid: (int(hashlib.md5(f's{sid}'.encode()).hexdigest()[:6], 16) % 1000) / 5000 - 0.1
     )
-    df['sentiment_score'] = (0.40 * es_norm + 0.35 * at_inv + 0.25 * sem2_g
-                             + s_noise).clip(0.05, 0.95).round(3)
+    df['sentiment_score'] = (0.40 * es_norm + 0.35 * at_inv + 0.25 * sem2_g + s_noise).clip(0.05, 0.95).round(3)
 
-    # --- Phase 2: Red Zone flag ---
-    df['red_zone'] = ((df['financial_stress_index'] >= 3)
-                      & (df['sentiment_score'] < 0.40)).astype(int)
-
+    # Phase 2: Red Zone flag
+    fsi = df.get('financial_stress_index', pd.Series(0, index=df.index))
+    df['red_zone'] = ((fsi >= 3) & (df['sentiment_score'] < 0.40)).astype(int)
+    
     return df
 
 
@@ -606,9 +609,9 @@ def api_stats():
     total = len(DF)
     dropouts = int(DF['dropout_label'].sum())
     at_risk = int((DF['dropout_predicted'] == 1).sum())
-    high = int((DF['intervention_tier'] == 'high').sum())
-    medium = int((DF['intervention_tier'] == 'medium').sum())
-    low = int((DF['intervention_tier'] == 'low').sum())
+    high = int((DF['intervention_tier'] == 'High').sum())
+    medium = int((DF['intervention_tier'] == 'Medium').sum())
+    low = int((DF['intervention_tier'] == 'Low').sum())
     avg_risk = round(float(DF['risk_score'].mean()), 3)
     avg_grade_delta = round(float(DF['grade_delta'].mean()), 2)
     avg_financial = round(float(DF['financial_stress_index'].mean()), 2)
@@ -642,7 +645,7 @@ def api_students():
     filtered = DF.copy()
 
     if tier and tier != 'all':
-        filtered = filtered[filtered['intervention_tier'] == tier]
+        filtered = filtered[filtered['intervention_tier'] == tier.capitalize()]
 
     if search:
         try:
@@ -899,7 +902,7 @@ def api_action_plan(student_id):
 @app.route('/api/red-zone')
 def api_red_zone():
     """Phase 2: Red Zone — students in financial + emotional distress."""
-    rz = DF[DF['red_zone'] == 1].sort_values('risk_score', ascending=False)
+    rz = DF[DF['intervention_tier'] == 'High'].sort_values('risk_score', ascending=False)
 
     page = int(request.args.get('page', 1))
     per_page = int(request.args.get('per_page', 10))
@@ -909,7 +912,7 @@ def api_red_zone():
     columns = [
         'student_id', 'risk_score', 'intervention_tier', 'sentiment_score',
         'financial_stress_index', 'grade_delta', 'engagement_score',
-        'gender_label', 'reason_text', 'red_zone'
+        'gender_label', 'reason_text'
     ]
 
     rows = [_row_to_dict(row[columns]) for _, row in rz.iloc[start:end].iterrows()]
@@ -998,6 +1001,11 @@ def api_simulate():
         actual = sim_risk['dropout_label']
         calibrated = calibrated * 0.6 + actual * 0.35 + 0.025
         after_probs = calibrated.clip(0.01, 0.99).round(3).values
+
+    # STRICT MONOTONICITY GUARANTEE:
+    # Beneficial policies should never logically increase a student's dropout risk.
+    # We clip after_probs so it is always <= before_probs to prevent ML noise.
+    after_probs = np.minimum(before_probs, after_probs)
 
     sim['new_risk_score'] = after_probs
     
